@@ -26,6 +26,26 @@ matrix:
           - ubuntu-toolchain-r-test
         packages:
           - g++-10
+  - os: linux
+    arch: arm64
+    dist: eoan
+    sudo: required
+    compiler: g++
+    env: 
+      - GROK_CI_BUILD_CONFIGURATION=Release
+    addons:
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        - g++
+      snaps:
+        - name: cmake
+          confinement: classic
+          #channel: latest/candidate
+          channel: 3.18/candidate
+          #channel: 3.17/beta
 before_install:
     - eval "${MATRIX_EVAL}"
 install:
