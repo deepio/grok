@@ -341,8 +341,7 @@ template<typename T> struct TileComponentBuffer {
 private:
 
 	bool use_band_buffers() const{
-		//return !m_encode && whole_tile_decoding && resolutions.size() > 1;
-		return false;
+		return !m_encode && whole_tile_decoding && resolutions.size() > 1;
 	}
 
 	grk_buffer_2d<T>* band_buf(uint32_t resno,uint32_t bandno) const{
