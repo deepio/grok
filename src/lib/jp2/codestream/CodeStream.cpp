@@ -2723,11 +2723,10 @@ bool CodeStream::decompress_tile() {
 	    		tileNumber++;
 	    }
 	}
-
-	auto tileProcessor = new TileProcessor(this,m_stream);
-	setTileProcessor(tileProcessor,true);
 	if (!parse_markers(&go_on))
 		return false;
+
+	auto tileProcessor = currentProcessor();
 
 	if (!j2k_decompress_tile_t2(this))
 		return false;
@@ -2807,22 +2806,20 @@ bool CodeStream::decompress_tiles(void) {
 			return false;
 	}
 
-	// read header and perform T2
+	// parse header and perform T2 followed by asynch T1
 	for (uint32_t tileno = 0; tileno < num_tiles_to_decode; tileno++) {
 		//1. read header
-		auto processor = new TileProcessor(this,m_stream);
-		setTileProcessor(processor,false);
 		if (!parse_markers(&go_on)){
-			setTileProcessor(nullptr,true);
+			setTileProcessor(nullptr,false);
 			return false;
 		}
 
 		if (!go_on){
-			setTileProcessor(nullptr,true);
 			break;
 		}
 
 		//2. T2 decode
+		auto processor = currentProcessor();
 		if (!j2k_decompress_tile_t2(this)){
 				GRK_ERROR("Failed to decompress tile %u/%u",
 						processor->m_tile_index + 1,
@@ -2854,7 +2851,7 @@ bool CodeStream::decompress_tiles(void) {
 			if (!j2k_decompress_tile_t2t1(this, processor,multi_tile)){
 					GRK_ERROR("Failed to decompress tile %u/%u",
 							processor->m_tile_index + 1,num_tiles_to_decode);
-					setTileProcessor(nullptr,true);
+					setTileProcessor(nullptr,false);
 					return false;
 			} else {
 				num_tiles_decoded++;
@@ -3233,6 +3230,7 @@ bool CodeStream::need_nb_tile_parts_correction(bool *p_correction_needed) {
 
 	/* initialize to no correction needed */
 	*p_correction_needed = false;
+	return true;
 
 	/* We can't do much in this case, seek is needed */
 	if (!stream->has_seek())
