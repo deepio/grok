@@ -11,6 +11,8 @@ set(common_SRCS
   ${GROK_SOURCE_DIR}/src/bin/common/convert.h
   ${GROK_SOURCE_DIR}/src/bin/image_format/IImageFormat.h
   ${GROK_SOURCE_DIR}/src/bin/image_format/ImageFormat.cpp
+  ${GROK_SOURCE_DIR}/src/bin/image_format/FileStreamIO.h
+  ${GROK_SOURCE_DIR}/src/bin/image_format/FileStreamIO.cpp
   ${GROK_SOURCE_DIR}/src/bin/image_format/ImageFormat.h
   ${GROK_SOURCE_DIR}/src/bin/image_format/PNMFormat.cpp
   ${GROK_SOURCE_DIR}/src/bin/image_format/PNMFormat.h
@@ -27,7 +29,7 @@ set(common_SRCS
   ${GROK_SOURCE_DIR}/src/bin/common/color.h
   ${GROK_SOURCE_DIR}/src/bin/common/common.cpp
   ${GROK_SOURCE_DIR}/src/bin/common/common.h
-  ${GROK_SOURCE_DIR}/src/bin/common/grok_string.h
+  ${GROK_SOURCE_DIR}/src/bin/common/grk_string.h
   
   ${GROK_SOURCE_DIR}/src/bin/common/spdlog/spdlog.cpp
   ${GROK_SOURCE_DIR}/src/bin/common/spdlog/color_sinks.cpp
@@ -48,6 +50,9 @@ if(GROK_HAVE_LIBJPEG)
 	list(APPEND common_SRCS ../image_format/iccjpeg.c)
 	list(APPEND common_SRCS ../image_format/iccjpeg.h)
 endif()
+if(GROK_HAVE_URING)
+	list(APPEND common_SRCS ../image_format/FileUringIO.cpp)
+endif()
 
 # Headers file are located here:
 include_directories(
@@ -63,6 +68,7 @@ include_directories(
   ${TIFF_INCLUDE_DIRNAME}
   ${JPEG_INCLUDE_DIRNAME}
   ${GROK_SOURCE_DIR}/src/include
+  ${GROK_SOURCE_DIR}/src/include/taskflow
   )
 
 if(WIN32)
@@ -94,6 +100,11 @@ foreach(exe grk_decompress grk_compress grk_dump)
   else(ZLIB_FOUND AND APPLE)
     target_link_libraries(${exe} ${Z_LIBNAME})
   endif()
+  
+  # liburing
+  if(URING)
+	  target_link_libraries(${exe} uring)
+  endif()
 
   # Install exe
   install(TARGETS ${exe}
@@ -113,7 +124,6 @@ if(BUILD_DOC)
 install(
   FILES       ${GROK_SOURCE_DIR}/doc/man/man1/grk_compress.1
               ${GROK_SOURCE_DIR}/doc/man/man1/grk_decompress.1
-              ${GROK_SOURCE_DIR}/doc/man/man1/grk_dump.1
   DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 #
 endif()

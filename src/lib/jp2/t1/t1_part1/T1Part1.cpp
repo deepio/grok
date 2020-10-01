@@ -15,7 +15,7 @@
  *
  */
 #include <T1Part1.h>
-#include "grok_includes.h"
+#include "grk_includes.h"
 #include "testing.h"
 #include <algorithm>
 using namespace std;
@@ -193,26 +193,11 @@ bool T1Part1::decompress(decodeBlockInfo *block) {
 	return ret;
 }
 
-void T1Part1::postDecode(decodeBlockInfo *block) {
+bool T1Part1::postDecode(decodeBlockInfo *block) {
 
 	auto cblk = block->cblk;
 	if (cblk->seg_buffers.empty())
-		return;
-
-	cblk_dec cblkexp;
-	memset(&cblkexp, 0, sizeof(cblk_dec));
-	cblkexp.x0 = block->x;
-	cblkexp.y0 = block->y;
-	cblkexp.x1 = block->x + cblk->width();
-	cblkexp.y1 = block->y + cblk->height();
-    post_decode(t1,
-    		&cblkexp,
-			block);
-}
-
-void T1Part1::post_decode(t1_info *t1,
-						cblk_dec *cblk,
-						decodeBlockInfo *block) {
+		return true;
 	uint32_t qmfbid = block->qmfbid;
 	float stepsize_over_two = block->stepsize/2;
 	auto tilec_data = block->tiledp;
@@ -222,28 +207,22 @@ void T1Part1::post_decode(t1_info *t1,
 
 	auto src = t1->data;
 	uint32_t roishift = block->roishift;
+
+	//1. ROI
 	if (roishift) {
-		if (roishift >= 31) {
-			for (uint16_t j = 0; j < cblk_h; ++j) {
-				for (uint16_t i = 0; i < cblk_w; ++i)
-					src[i] = 0;
-				src += cblk_w;
-			}
-		} else {
-			int32_t thresh = 1 << roishift;
-			for (uint32_t j = 0; j < cblk_h; ++j) {
-				for (uint32_t i = 0; i < cblk_w; ++i) {
-					int32_t val = src[i];
-					int32_t mag = abs(val);
-					if (mag >= thresh) {
-						mag >>= roishift;
-						src[i] = val < 0 ? -mag : mag;
-					}
+		auto src_roi = src;
+		int32_t thresh = 1 << roishift;
+		for (uint32_t j = 0; j < cblk_h; ++j) {
+			for (uint32_t i = 0; i < cblk_w; ++i) {
+				int32_t val = src_roi[i];
+				int32_t mag = abs(val);
+				if (mag >= thresh) {
+					mag >>= roishift;
+					src_roi[i] = val < 0 ? -mag : mag;
 				}
-				src += cblk_w;
 			}
+			src_roi += cblk_w;
 		}
-		src = t1->data;
 	}
 
 	if (!block->tilec->whole_tile_decoding) {
@@ -282,7 +261,7 @@ void T1Part1::post_decode(t1_info *t1,
 					  1,
 					  cblk_w,
 					  true)) {
-			  return;
+			  return false;
 		  }
 	} else {
 		auto dest = tilec_data;
@@ -320,6 +299,10 @@ void T1Part1::post_decode(t1_info *t1,
 		}
 
 	}
+
+	// note: if no MCT, then we could do dc shift and clamp here
+
+	return true;
 }
 
 }

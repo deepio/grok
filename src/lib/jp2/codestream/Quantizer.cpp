@@ -1,64 +1,25 @@
 /*
-*    Copyright (C) 2016-2020 Grok Image Compression Inc.
-*
-*    This source code is free software: you can redistribute it and/or  modify
-*    it under the terms of the GNU Affero General Public License, version 3,
-*    as published by the Free Software Foundation.
-*
-*    This source code is distributed in the hope that it will be useful,
-*    but WITHOUT ANY WARRANTY; without even the implied warranty of
-*    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-*    GNU Affero General Public License for more details.
-*
-*    You should have received a copy of the GNU Affero General Public License
-*    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*
-*
-*    This source code incorporates work covered by the following copyright and
-*    permission notice:
-*
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
+ *    Copyright (C) 2016-2020 Grok Image Compression Inc.
  *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2008, Jerome Fimes, Communications & Systemes <jerome.fimes@c-s.fr>
- * Copyright (c) 2006-2007, Parvatha Elangovan
- * Copyright (c) 2010-2011, Kaori Hagihara
- * Copyright (c) 2011-2012, Centre National d'Etudes Spatiales (CNES), France
- * Copyright (c) 2012, CS Systemes d'Information, France
- * All rights reserved.
+ *    This source code is free software: you can redistribute it and/or  modify
+ *    it under the terms of the GNU Affero General Public License, version 3,
+ *    as published by the Free Software Foundation.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *    This source code is distributed in the hope that it will be useful,
+ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *    GNU Affero General Public License for more details.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ *    You should have received a copy of the GNU Affero General Public License
+ *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
+ *
  */
 
-#include "grok_includes.h"
+#include "grk_includes.h"
 
 namespace grk {
 
@@ -217,14 +178,14 @@ bool Quantizer::compare_SQcd_SQcc(CodeStream *codeStream,
 	return true;
 }
 
-bool Quantizer::read_SQcd_SQcc(CodeStream *codeStream, TileProcessor *tileProcessor,
-		bool fromQCC, uint32_t comp_no,
-		uint8_t *p_header_data, uint16_t *header_size) {
+bool Quantizer::read_SQcd_SQcc(CodeStream *codeStream,
+								bool fromQCC, uint32_t comp_no,
+								uint8_t *p_header_data, uint16_t *header_size) {
 	assert(codeStream != nullptr);
 	assert(p_header_data != nullptr);
 	assert(comp_no < codeStream->m_input_image->numcomps);
 	if (*header_size < 1) {
-		GROK_ERROR( "Error reading SQcd or SQcc element");
+		GRK_ERROR( "Error reading SQcd or SQcc element");
 		return false;
 	}
 	/* Sqcx */
@@ -235,18 +196,33 @@ bool Quantizer::read_SQcd_SQcc(CodeStream *codeStream, TileProcessor *tileProces
 	*header_size = (uint16_t)(*header_size - 1);
 
 	// scoping rules
-	auto tcp = codeStream->get_current_decode_tcp(tileProcessor);
+	auto tcp = codeStream->get_current_decode_tcp();
 	auto tccp = tcp->tccps + comp_no;
 	bool ignore = false;
 	bool fromTileHeader = codeStream->isDecodingTilePartHeader();
 	bool mainQCD = !fromQCC && !fromTileHeader;
 
-	if ((!fromTileHeader && !fromQCC) && tccp->fromQCC)
-		ignore = true;
-	if ((fromTileHeader && !fromQCC)
-			&& (tccp->fromTileHeader && tccp->fromQCC))
-		ignore = true;
+	if (tccp->quantizationMarkerSet) {
+		bool tileHeaderQCC = fromQCC && fromTileHeader;
+		bool setMainQCD = !tccp->fromQCC && !tccp->fromTileHeader;
+		bool setMainQCC = tccp->fromQCC && !tccp->fromTileHeader;
+		bool setTileHeaderQCD = !tccp->fromQCC && tccp->fromTileHeader;
+		bool setTileHeaderQCC = tccp->fromQCC && tccp->fromTileHeader;
+
+		if (!fromTileHeader){
+			if (setMainQCC || (mainQCD && setMainQCD))
+				ignore = true;
+		} else {
+			assert(setMainQCD);
+			if (setTileHeaderQCC)
+				ignore = true;
+			else if (setTileHeaderQCD && !tileHeaderQCC)
+				ignore = true;
+		}
+	}
+
 	if (!ignore) {
+		tccp->quantizationMarkerSet = true;
 		tccp->fromQCC = fromQCC;
 		tccp->fromTileHeader = fromTileHeader;
 		tccp->qntsty = qntsty;
@@ -260,7 +236,7 @@ bool Quantizer::read_SQcd_SQcc(CodeStream *codeStream, TileProcessor *tileProces
 					(tccp->qntsty == J2K_CCP_QNTSTY_NOQNT) ?
 							(uint8_t)(*header_size) : (uint8_t)((*header_size) / 2);
 			if (tccp->numStepSizes > GRK_J2K_MAXBANDS) {
-				GROK_WARN(
+				GRK_WARN(
 						"While reading QCD or QCC marker segment, "
 								"number of step sizes (%u) is greater"
 								" than GRK_J2K_MAXBANDS (%u). "
@@ -275,7 +251,7 @@ bool Quantizer::read_SQcd_SQcc(CodeStream *codeStream, TileProcessor *tileProces
 	}
 	if (qntsty == J2K_CCP_QNTSTY_NOQNT) {
 		if (*header_size < tccp->numStepSizes) {
-			GROK_ERROR( "Error reading SQcd_SQcc marker");
+			GRK_ERROR( "Error reading SQcd_SQcc marker");
 			return false;
 		}
 		for (uint32_t band_no = 0; band_no < tccp->numStepSizes;
@@ -294,7 +270,7 @@ bool Quantizer::read_SQcd_SQcc(CodeStream *codeStream, TileProcessor *tileProces
 		*header_size = (uint16_t)(*header_size - tccp->numStepSizes);
 	} else {
 		if (*header_size < 2 * tccp->numStepSizes) {
-			GROK_ERROR( "Error reading SQcd_SQcc marker");
+			GRK_ERROR( "Error reading SQcd_SQcc marker");
 			return false;
 		}
 		for (uint32_t band_no = 0; band_no < tccp->numStepSizes;

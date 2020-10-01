@@ -14,48 +14,12 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2007, Callum Lerwick <seg@haxxed.com>
- * Copyright (c) 2012, Carl Hetherington
- * Copyright (c) 2017, IntoPIX SA <support@intopix.com>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "grok_includes.h"
+
+#include "grk_includes.h"
 #include "grok.h"
 #include "t1_common.h"
 #include "logger.h"
@@ -213,7 +177,7 @@ bool t1_allocate_buffers(t1_info *t1, uint32_t w, uint32_t h) {
 		t1->data =
 				(int32_t*) grk::grk_aligned_malloc(datasize * sizeof(int32_t));
 		if (!t1->data) {
-			GROK_ERROR("Out of memory");
+			GRK_ERROR("Out of memory");
 			return false;
 		}
 		t1->datasize = datasize;
@@ -234,7 +198,7 @@ bool t1_allocate_buffers(t1_info *t1, uint32_t w, uint32_t h) {
 		t1->flags = (grk_flag*) grk::grk_aligned_malloc(
 				flagssize * sizeof(grk_flag));
 		if (!t1->flags) {
-			GROK_ERROR("Out of memory");
+			GRK_ERROR("Out of memory");
 			return false;
 		}
 	}
@@ -274,7 +238,7 @@ bool t1_allocate_buffers(t1_info *t1, uint32_t w, uint32_t h) {
 t1_info* t1_create(bool isEncoder) {
 	t1_info *t1 = (t1_info*) grk::grk_calloc(1, sizeof(t1_info));
 	if (!t1){
-		GROK_ERROR("Out of memory");
+		GRK_ERROR("Out of memory");
 		return nullptr;
 	}
 	t1->encoder = isEncoder;
@@ -935,7 +899,7 @@ static void t1_dec_clnpass_check_segsym(t1_info *t1, int32_t cblksty) {
 		mqc_decode(v2, mqc);
 		v = (v << 1) | v2;
 		if (v!=0xa) {
-		 GROK_WARN("Bad segmentation symbol %x", v);
+		 GRK_WARN("Bad segmentation symbol %x", v);
 		}
 	}
 }
@@ -1240,7 +1204,7 @@ bool t1_decode_cblk(t1_info *t1, cblk_dec *cblk, uint32_t orient,
 
 	int32_t bpno_plus_one = (int32_t) (roishift + cblk->numbps);
 	if (bpno_plus_one >= (int32_t)k_max_bit_planes) {
-		grk::GROK_ERROR("unsupported number of bit planes: %u > %u",
+		grk::GRK_ERROR("unsupported number of bit planes: %u > %u",
 				bpno_plus_one, k_max_bit_planes);
 		return false;
 	}
@@ -1297,13 +1261,13 @@ bool t1_decode_cblk(t1_info *t1, cblk_dec *cblk, uint32_t orient,
 
 	if (check_pterm) {
 		if (mqc->bp + 2 < mqc->end) {
-			grk::GROK_WARN(
+			grk::GRK_WARN(
 					"PTERM check failure: %u remaining bytes in code block (%u used / %u)",
 					(int) (mqc->end - mqc->bp) - 2,
 					(int) (mqc->bp - mqc->start),
 					(int) (mqc->end - mqc->start));
 		} else if (mqc->end_of_byte_stream_counter > 2) {
-			grk::GROK_WARN(
+			grk::GRK_WARN(
 					"PTERM check failure: %u synthesized 0xFF markers read",
 					mqc->end_of_byte_stream_counter);
 		}

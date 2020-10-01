@@ -14,49 +14,14 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2007, Jonathan Ballard <dzonatas@dzonux.net>
- * Copyright (c) 2007, Callum Lerwick <seg@haxxed.com>
- * Copyright (c) 2017, IntoPIX SA <support@intopix.com>
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include <assert.h>
-#include "grok_includes.h"
+#include "CPUArch.h"
+#include "grk_includes.h"
 #include "dwt.h"
 #include <algorithm>
 
@@ -141,13 +106,13 @@ template <typename T> struct dwt_data {
 		// add 10 just to be sure to we are safe from
 		// segment growth overflow
 	    if (len > (SIZE_MAX - 10U)) {
-	        GROK_ERROR("data size overflow");
+	        GRK_ERROR("data size overflow");
 	        return false;
 	    }
 	    len += 10U;
 	    /* overflow check */
 	    if (len > (SIZE_MAX / sizeof(T))) {
-	        GROK_ERROR("data size overflow");
+	        GRK_ERROR("data size overflow");
 	        return false;
 	    }
 		mem = (T*)grk_aligned_malloc(len * sizeof(T));
@@ -607,15 +572,16 @@ static void decode_v_53(const dwt_data<int32_t> *dwt,
                 dest[0] = bandL[0];
             return;
         }
-
+    	if (CPUArch::SSE2() || CPUArch::AVX2() ) {
 #if (defined(__SSE2__) || defined(__AVX2__))
-        if (len > 1 && nb_cols == PLL_COLS_53) {
-            /* Same as below general case, except that thanks to SSE2/AVX2 */
-            /* we can efficiently process 8/16 columns in parallel */
-            decode_v_cas0_mcols_SSE2_OR_AVX2_53(dwt->mem, bandL,sn, strideL, bandH, dwt->dn, strideH, dest, strideDest);
-            return;
-        }
+			if (len > 1 && nb_cols == PLL_COLS_53) {
+				/* Same as below general case, except that thanks to SSE2/AVX2 */
+				/* we can efficiently process 8/16 columns in parallel */
+				decode_v_cas0_mcols_SSE2_OR_AVX2_53(dwt->mem, bandL,sn, strideL, bandH, dwt->dn, strideH, dest, strideDest);
+				return;
+			}
 #endif
+    	}
         if (len > 1) {
             for (uint32_t c = 0; c < nb_cols; c++, bandL++, bandH++,dest++)
                 decode_v_cas0_53(dwt->mem, bandL,sn, strideL,bandH,dwt->dn, strideH, dest, strideDest);
@@ -636,15 +602,16 @@ static void decode_v_53(const dwt_data<int32_t> *dwt,
             }
             return;
         }
-
+        if (CPUArch::SSE2() || CPUArch::AVX2() ) {
 #if (defined(__SSE2__) || defined(__AVX2__))
-        if (nb_cols == PLL_COLS_53) {
-            /* Same as below general case, except that thanks to SSE2/AVX2 */
-            /* we can efficiently process 8/16 columns in parallel */
-            decode_v_cas1_mcols_SSE2_OR_AVX2_53(dwt->mem, bandL,sn, strideL,bandH,dwt->dn, strideH, dest, strideDest);
-            return;
-        }
+			if (nb_cols == PLL_COLS_53) {
+				/* Same as below general case, except that thanks to SSE2/AVX2 */
+				/* we can efficiently process 8/16 columns in parallel */
+				decode_v_cas1_mcols_SSE2_OR_AVX2_53(dwt->mem, bandL,sn, strideL,bandH,dwt->dn, strideH, dest, strideDest);
+				return;
+			}
 #endif
+        }
 		for (uint32_t c = 0; c < nb_cols; c++, bandL++,bandH++,dest++)
 			decode_v_cas1_53(dwt->mem, bandL,sn,strideL,bandH, dwt->dn, strideH, dest, strideDest);
     }
@@ -681,7 +648,7 @@ static bool decode_h_mt_53(uint32_t num_threads,
     if (num_threads == 1 || rh <= 1) {
     	if (!horiz.mem){
     	    if (! horiz.alloc(data_size)) {
-    	        GROK_ERROR("Out of memory");
+    	        GRK_ERROR("Out of memory");
     	        return false;
     	    }
     	    vert.mem = horiz.mem;
@@ -707,7 +674,7 @@ static bool decode_h_mt_53(uint32_t num_threads,
 										j * step_j,
 										j < (num_jobs - 1U) ? (j + 1U) * step_j : rh);
             if (!job->data.alloc(data_size)) {
-                GROK_ERROR("Out of memory");
+                GRK_ERROR("Out of memory");
                 horiz.release();
                 return false;
             }
@@ -770,7 +737,7 @@ static bool decode_v_mt_53(uint32_t num_threads,
     if (num_threads == 1 || rw <= 1) {
     	if (!horiz.mem){
     	    if (! horiz.alloc(data_size)) {
-    	        GROK_ERROR("Out of memory");
+    	        GRK_ERROR("Out of memory");
     	        return false;
     	    }
     	    vert.mem = horiz.mem;
@@ -798,7 +765,7 @@ static bool decode_v_mt_53(uint32_t num_threads,
 										j * step_j,
 										j < (num_jobs - 1U) ? (j + 1U) * step_j : rw);
             if (!job->data.alloc(data_size)) {
-                GROK_ERROR("Out of memory");
+                GRK_ERROR("Out of memory");
                 vert.release();
                 return false;
             }
@@ -841,7 +808,7 @@ static bool decode_tile_53( TileComponent* tilec, uint32_t numres){
     size_t data_size = dwt_utils::max_resolution(tr, numres);
     /* overflow check */
     if (data_size > (SIZE_MAX / PLL_COLS_53 / sizeof(int32_t))) {
-        GROK_ERROR("Overflow");
+        GRK_ERROR("Overflow");
         return false;
     }
     /* We need PLL_COLS_53 times the height of the array, */
@@ -851,13 +818,14 @@ static bool decode_tile_53( TileComponent* tilec, uint32_t numres){
     dwt_data<int32_t> vert;
     data_size *= PLL_COLS_53 * sizeof(int32_t);
     bool rc = true;
-    uint32_t res = 1;
-    while (--numres) {
+    for (uint32_t res = 1; res < numres; ++res){
         horiz.sn = rw;
         vert.sn = rh;
         ++tr;
         rw = tr->width();
         rh = tr->height();
+        if (rw == 0 || rh == 0)
+        	continue;
         horiz.dn = rw - horiz.sn;
         horiz.cas = tr->x0 & 1;
     	if (!decode_h_mt_53(num_threads,
@@ -898,7 +866,6 @@ static bool decode_tile_53( TileComponent* tilec, uint32_t numres){
 							tilec->buf->ptr(res),
 							tilec->buf->stride(res)))
     		return false;
-        res++;
     }
     horiz.release();
     return rc;
@@ -1230,7 +1197,7 @@ static bool decode_h_mt_97(uint32_t num_threads,
 										0,
 										(j < (num_jobs - 1U) ? (j + 1U) * step_j : rh) - min_j);
 			if (!job->data.alloc(data_size)) {
-				GROK_ERROR("Out of memory");
+				GRK_ERROR("Out of memory");
 				horiz.release();
 				return false;
 			}
@@ -1353,7 +1320,7 @@ static bool decode_v_mt_97(uint32_t num_threads,
 														0,
 														(j < (num_jobs - 1U) ? (j + 1U) * step_j : rw) - min_j);
 			if (!job->data.alloc(data_size)) {
-				GROK_ERROR("Out of memory");
+				GRK_ERROR("Out of memory");
 				vert.release();
 				return false;
 			}
@@ -1397,18 +1364,19 @@ bool decode_tile_97(TileComponent* GRK_RESTRICT tilec,uint32_t numres){
     dwt_data<vec4f> horiz;
     dwt_data<vec4f> vert;
     if (!horiz.alloc(data_size)) {
-        GROK_ERROR("Out of memory");
+        GRK_ERROR("Out of memory");
         return false;
     }
     vert.mem = horiz.mem;
     uint32_t num_threads = (uint32_t)ThreadPool::get()->num_threads();
-    uint32_t res = 1;
-    while (--numres) {
+    for (uint32_t res = 1; res < numres; ++res) {
         horiz.sn = rw;
         vert.sn = rh;
         ++tr;
         rw = tr->width();
         rh = tr->height();
+        if (rw == 0 || rh == 0)
+        	continue;
         horiz.dn = rw - horiz.sn;
         horiz.cas = tr->x0 & 1;
         horiz.win_l_x0 = 0;
@@ -1455,7 +1423,6 @@ bool decode_tile_97(TileComponent* GRK_RESTRICT tilec,uint32_t numres){
 							(float*) tilec->buf->ptr(res),
 							tilec->buf->stride(res)))
         	return false;
-        res++;
     }
     horiz.release();
     return true;
@@ -1853,7 +1820,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
     size_t data_size = dwt_utils::max_resolution(tr, numres) * data_multiplier;
 	dwt_data<T> horiz;
     if (!horiz.alloc(data_size)) {
-        GROK_ERROR("Out of memory");
+        GRK_ERROR("Out of memory");
         return false;
     }
 	dwt_data<T> vert;
@@ -1988,7 +1955,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 								  HORIZ_STEP,
 								  1,
 								  true)) {
-					 GROK_ERROR("sparse array write failure");
+					 GRK_ERROR("sparse array write failure");
 					 horiz.release();
 					 return false;
 				 }
@@ -2004,7 +1971,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 								  HORIZ_STEP,
 								  1,
 								  true)) {
-					 GROK_ERROR("Sparse array write failure");
+					 GRK_ERROR("Sparse array write failure");
 					 horiz.release();
 					 return false;
 				 }
@@ -2016,7 +1983,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 											bounds[k][0] + j * step_j,
 											j < (num_jobs - 1U) ? bounds[k][0] + (j + 1U) * step_j : bounds[k][1]);
 				if (!job->data.alloc(data_size)) {
-					GROK_ERROR("Out of memory");
+					GRK_ERROR("Out of memory");
 					horiz.release();
 					return false;
 				}
@@ -2034,7 +2001,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 										  HORIZ_STEP,
 										  1,
 										  true)) {
-							 GROK_ERROR("sparse array write failure");
+							 GRK_ERROR("sparse array write failure");
 							 job->data.release();
 							 return 0;
 						 }
@@ -2050,7 +2017,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 										  HORIZ_STEP,
 										  1,
 										  true)) {
-							 GROK_ERROR("Sparse array write failure");
+							 GRK_ERROR("Sparse array write failure");
 							 job->data.release();
 							 return 0;
 						 }
@@ -2088,7 +2055,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 							  1,
 							  VERT_STEP,
 							  true)) {
-					GROK_ERROR("Sparse array write failure");
+					GRK_ERROR("Sparse array write failure");
 					horiz.release();
 					return false;
 				}
@@ -2104,7 +2071,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 								  1,
 								  VERT_STEP,
 								  true)) {
-					GROK_ERROR("Sparse array write failure");
+					GRK_ERROR("Sparse array write failure");
 					horiz.release();
 					return false;
 				}
@@ -2116,7 +2083,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 											win_tr_x0 + j * step_j,
 											j < (num_jobs - 1U) ? win_tr_x0 + (j + 1U) * step_j : win_tr_x1);
 				if (!job->data.alloc(data_size)) {
-					GROK_ERROR("Out of memory");
+					GRK_ERROR("Out of memory");
 					horiz.release();
 					return false;
 				}
@@ -2134,7 +2101,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 									  1,
 									  VERT_STEP,
 									  true)) {
-							GROK_ERROR("Sparse array write failure");
+							GRK_ERROR("Sparse array write failure");
 							job->data.release();
 							return 0;
 						}
@@ -2150,7 +2117,7 @@ template <typename T, uint32_t HORIZ_STEP, uint32_t VERT_STEP, uint32_t FILTER_W
 												  1,
 												  VERT_STEP,
 												  true)) {
-							GROK_ERROR("Sparse array write failure");
+							GRK_ERROR("Sparse array write failure");
 							job->data.release();
 							return 0;
 						}

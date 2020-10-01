@@ -14,48 +14,12 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2008, 2011-2012, Centre National d'Etudes Spatiales (CNES), FR
- * Copyright (c) 2012, CS Systemes d'Information, France
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "grok_includes.h"
+#include "grk_includes.h"
 
 namespace grk {
 
@@ -177,13 +141,13 @@ bool TileComponent::init(bool isEncoder,
 		uint32_t tprc_y_start = uint_floordivpow2(res->y0, pdy) << pdy;
 		uint64_t temp = (uint64_t)ceildivpow2<uint32_t>(res->x1, pdx) << pdx;
 		if (temp > UINT_MAX){
-			GROK_ERROR("Resolution x1 value %u must be less than 2^32", temp);
+			GRK_ERROR("Resolution x1 value %u must be less than 2^32", temp);
 			return false;
 		}
 		uint32_t br_prc_x_end = (uint32_t)temp;
 		temp = (uint64_t)ceildivpow2<uint32_t>(res->y1, pdy) << pdy;
 		if (temp > UINT_MAX){
-			GROK_ERROR("Resolution y1 value %u must be less than 2^32", temp);
+			GRK_ERROR("Resolution y1 value %u must be less than 2^32", temp);
 			return false;
 		}
 		uint32_t br_prc_y_end = (uint32_t)temp;
@@ -199,7 +163,7 @@ bool TileComponent::init(bool isEncoder,
 		/*fprintf(stderr, "\t\t\tres_pw=%u, res_ph=%u\n", res->pw, res->ph );*/
 
 		if (mult_will_overflow(res->pw, res->ph)) {
-			GROK_ERROR(
+			GRK_ERROR(
 					"nb_precincts calculation would overflow ");
 			return false;
 		}
@@ -207,7 +171,7 @@ bool TileComponent::init(bool isEncoder,
 		uint64_t nb_precincts = (uint64_t)res->pw * res->ph;
 
 		if (mult64_will_overflow(nb_precincts, sizeof(grk_precinct))) {
-			GROK_ERROR(	"nb_precinct_size calculation would overflow ");
+			GRK_ERROR(	"nb_precinct_size calculation would overflow ");
 			return false;
 		}
 		if (resno == 0) {
@@ -560,10 +524,7 @@ void TileComponent::create_buffer(grk_image *output_image,
 	auto highestRes =
 			(!m_is_encoder) ? resolutions_to_decompress : numresolutions;
 	auto res =  resolutions + highestRes - 1;
-	x0 = res->x0;
-	x1 = res->x1;
-	y0 = res->y0;
-	y1 = res->y1;
+	grk_rect_u32::operator=(*(grk_rect_u32*)res);
 	auto maxRes = resolutions + numresolutions - 1;
 
 	delete buf;

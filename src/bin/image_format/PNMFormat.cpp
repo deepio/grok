@@ -12,47 +12,13 @@
  *
  *    You should have received a copy of the GNU Affero General Public License
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
  *
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
- *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2006-2007, Parvatha Elangovan
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
+
 #include <cstdio>
 #include <cstdlib>
 #include "grk_apps_config.h"
@@ -411,7 +377,7 @@ static grk_image* pnmtoimage(const char *filename,
 		cmptparm[i].w = w;
 		cmptparm[i].h = h;
 	}
-	image = grk_image_create(numcomps, &cmptparm[0], color_space);
+	image = grk_image_create(numcomps, &cmptparm[0], color_space,true);
 	if (!image) {
 		spdlog::error("pnmtoimage: Failed to create image");
 		goto cleanup;
@@ -434,7 +400,7 @@ static grk_image* pnmtoimage(const char *filename,
 		area = (uint64_t)image->comps[0].stride * h;
 		while (i < area) {
 			size_t bytesRead = fread(chunk, 1, chunkSize, fp);
-			if (!bytesRead)
+			if (bytesRead == 0)
 				break;
 			uint8_t *chunkPtr = (uint8_t*) chunk;
 			for (size_t ct = 0; ct < bytesRead; ++ct) {
@@ -511,8 +477,9 @@ static grk_image* pnmtoimage(const char *filename,
 		uint8_t chunk[chunkSize];
 		uint64_t i = 0;
 		while (i < area) {
-			size_t bytesRead = fread(chunk, 1, min((uint64_t)chunkSize, (uint64_t)(area - i)), fp);
-			if (!bytesRead)
+			auto toRead = min((uint64_t)chunkSize, (uint64_t)(area - i));
+			size_t bytesRead = fread(chunk, 1, toRead, fp);
+			if (bytesRead == 0)
 				break;
 			auto chunkPtr = (uint8_t*) chunk;
 			for (size_t ct = 0; ct < bytesRead; ++ct) {
@@ -524,9 +491,8 @@ static grk_image* pnmtoimage(const char *filename,
 						if (counter == w){
 							counter = 0;
 							index += stride_diff;
-						}
-						if ((index % w) == 0)
 							break;
+						}
 					}
 				} else {
 					image->comps[0].data[index++] = c & 1;
@@ -552,7 +518,21 @@ static grk_image* pnmtoimage(const char *filename,
 	return image;
 }/* pnmtoimage() */
 
-static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
+
+
+bool PNMFormat::encodeHeader(grk_image *image, const std::string &filename,
+		uint32_t compressionParam) {
+	m_image = image;
+	m_fileName = filename;
+
+	(void) compressionParam;
+
+	return true;
+
+}
+bool PNMFormat::encodeStrip(uint32_t rows){
+	(void)rows;
+
 	int *red = nullptr;
 	int *green = nullptr;
 	int *blue = nullptr;
@@ -562,23 +542,21 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 	int adjustR, adjustG, adjustB, adjustA;
 	int two, want_gray, has_alpha, triple;
 	int v;
-	FILE *fdest = nullptr;
-	const char *tmp = outfile;
+	const char *tmp = m_fileName.c_str();
 	char *destname = nullptr;
-	int rc = 1;
-	bool writeToStdout = grk::useStdio(outfile);
+	bool success = false;
+	m_useStdIO = grk::useStdio(m_fileName.c_str());
 
 	alpha = nullptr;
 
-	if ((prec = image->comps[0].prec) > 16) {
-		spdlog::error("{}:{}:imagetopnm\n\tprecision {} is larger than 16"
-				"\n\t: refused.", __FILE__, __LINE__, prec);
+	if ((prec = m_image->comps[0].prec) > 16) {
+		spdlog::error("{}:{}:imagetopnm\n\tprecision {} is larger than 16", __FILE__, __LINE__, prec);
 		goto cleanup;
 	}
 	two = has_alpha = 0;
-	ncomp = image->numcomps;
+	ncomp = m_image->numcomps;
 
-	if (!grk::all_components_sanity_check(image)) {
+	if (!grk::all_components_sanity_check(m_image,true)) {
 		goto cleanup;
 	}
 
@@ -590,63 +568,63 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 	if (want_gray)
 		ncomp = 1;
 
-	if (writeToStdout){
-		if (force_split) {
+	if (m_useStdIO){
+		if (forceSplit) {
 			spdlog::error("Unable to write split file to stdout");
 			goto cleanup;
 		}
 	}
 
-	if ((!force_split)
+	if ((!forceSplit)
 			&& (ncomp == 2 /* GRAYA */
 					|| (ncomp > 2 /* RGB, RGBA */
-					&& image->comps[0].dx == image->comps[1].dx
-							&& image->comps[1].dx == image->comps[2].dx
-							&& image->comps[0].dy == image->comps[1].dy
-							&& image->comps[1].dy == image->comps[2].dy
+					&& m_image->comps[0].dx == m_image->comps[1].dx
+							&& m_image->comps[1].dx == m_image->comps[2].dx
+							&& m_image->comps[0].dy == m_image->comps[1].dy
+							&& m_image->comps[1].dy == m_image->comps[2].dy
 					))) {
 
-		if (!grk::grk_open_for_output(&fdest, outfile,writeToStdout))
+		if (!grk::grk_open_for_output(&m_fileStream, m_fileName.c_str(),m_useStdIO))
 			goto cleanup;
 
 		two = (prec > 8);
 		triple = (ncomp > 2);
-		width = image->comps[0].w;
-		stride_diff = image->comps[0].stride - width;
-		height = image->comps[0].h;
+		width = m_image->comps[0].w;
+		stride_diff = m_image->comps[0].stride - width;
+		height = m_image->comps[0].h;
 		max = (1 << prec) - 1;
 		has_alpha = (ncomp == 4 || ncomp == 2);
 
-		red = image->comps[0].data;
+		red = m_image->comps[0].data;
 
 		if (triple) {
-			green = image->comps[1].data;
-			blue = image->comps[2].data;
+			green = m_image->comps[1].data;
+			blue = m_image->comps[2].data;
 		} else
 			green = blue = nullptr;
 
 		if (has_alpha) {
 			const char *tt = (triple ? "RGB_ALPHA" : "GRAYSCALE_ALPHA");
 
-			fprintf(fdest, "P7\n# Grok-%s\nWIDTH %u\nHEIGHT %u\nDEPTH %u\n"
+			fprintf(m_fileStream, "P7\n# Grok-%s\nWIDTH %u\nHEIGHT %u\nDEPTH %u\n"
 					"MAXVAL %u\nTUPLTYPE %s\nENDHDR\n", grk_version(), width, height,
 					ncomp, max, tt);
-			alpha = image->comps[ncomp - 1].data;
+			alpha = m_image->comps[ncomp - 1].data;
 			adjustA = (
-					image->comps[ncomp - 1].sgnd ?
-							1 << (image->comps[ncomp - 1].prec - 1) : 0);
+					m_image->comps[ncomp - 1].sgnd ?
+							1 << (m_image->comps[ncomp - 1].prec - 1) : 0);
 		} else {
-			fprintf(fdest, "P6\n# Grok-%s\n%u %u\n%u\n", grk_version(), width, height,
+			fprintf(m_fileStream, "P6\n# Grok-%s\n%u %u\n%u\n", grk_version(), width, height,
 					max);
 			adjustA = 0;
 		}
-		adjustR = (image->comps[0].sgnd ? 1 << (image->comps[0].prec - 1) : 0);
+		adjustR = (m_image->comps[0].sgnd ? 1 << (m_image->comps[0].prec - 1) : 0);
 
 		if (triple) {
 			adjustG = (
-					image->comps[1].sgnd ? 1 << (image->comps[1].prec - 1) : 0);
+					m_image->comps[1].sgnd ? 1 << (m_image->comps[1].prec - 1) : 0);
 			adjustB = (
-					image->comps[2].sgnd ? 1 << (image->comps[2].prec - 1) : 0);
+					m_image->comps[2].sgnd ? 1 << (m_image->comps[2].prec - 1) : 0);
 		} else
 			adjustG = adjustB = 0;
 
@@ -660,18 +638,18 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 				for (uint32_t i = 0; i < width; ++i){
 					v = *red++ + adjustR;
 					if (!grk::writeBytes<uint16_t>((uint16_t) v, buf, &outPtr,
-							&outCount, bufSize, true, fdest)) {
+							&outCount, bufSize, true, m_fileStream)) {
 						goto cleanup;
 					}
 					if (triple) {
 						v = *green++ + adjustG;
 						if (!grk::writeBytes<uint16_t>((uint16_t) v, buf, &outPtr,
-								&outCount, bufSize, true, fdest)) {
+								&outCount, bufSize, true, m_fileStream)) {
 							goto cleanup;
 						}
 						v = *blue++ + adjustB;
 						if (!grk::writeBytes<uint16_t>((uint16_t) v, buf, &outPtr,
-								&outCount, bufSize, true, fdest)) {
+								&outCount, bufSize, true, m_fileStream)) {
 							goto cleanup;
 						}
 					}/* if(triple) */
@@ -679,7 +657,7 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 					if (has_alpha) {
 						v = *alpha++ + adjustA;
 						if (!grk::writeBytes<uint16_t>((uint16_t) v, buf, &outPtr,
-								&outCount, bufSize, true, fdest)) {
+								&outCount, bufSize, true, m_fileStream)) {
 							goto cleanup;
 						}
 					}
@@ -693,7 +671,7 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 					alpha += stride_diff;
 			}
 			if (outCount) {
-				size_t res = fwrite(buf, sizeof(uint16_t), outCount, fdest);
+				size_t res = fwrite(buf, sizeof(uint16_t), outCount, m_fileStream);
 				if (res != outCount) {
 					goto cleanup;
 				}
@@ -707,25 +685,25 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 				for (uint32_t i = 0; i < width; ++i){
 					v = *red++;
 					if (!grk::writeBytes<uint8_t>((uint8_t) v, buf, &outPtr,
-							&outCount, bufSize, true, fdest)) {
+							&outCount, bufSize, true, m_fileStream)) {
 						goto cleanup;
 					}
 					if (triple) {
 						v = *green++;
 						if (!grk::writeBytes<uint8_t>((uint8_t) v, buf, &outPtr,
-								&outCount, bufSize, true, fdest)) {
+								&outCount, bufSize, true, m_fileStream)) {
 							goto cleanup;
 						}
 						v = *blue++;
 						if (!grk::writeBytes<uint8_t>((uint8_t) v, buf, &outPtr,
-								&outCount, bufSize, true, fdest)) {
+								&outCount, bufSize, true, m_fileStream)) {
 							goto cleanup;
 						}
 					}
 					if (has_alpha) {
 						v = *alpha++;
 						if (!grk::writeBytes<uint8_t>((uint8_t) v, buf, &outPtr,
-								&outCount, bufSize, true, fdest)) {
+								&outCount, bufSize, true, m_fileStream)) {
 							goto cleanup;
 						}
 					}
@@ -739,27 +717,34 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 					alpha += stride_diff;
 			}
 			if (outCount) {
-				size_t res = fwrite(buf, sizeof(uint8_t), outCount, fdest);
+				size_t res = fwrite(buf, sizeof(uint8_t), outCount, m_fileStream);
 				if (res != outCount) {
 					goto cleanup;
 				}
 			}
 		}
-		if (writeToStdout) {
-			rc = 0;
+		// we only write the first PNM file to stdout
+		if (m_useStdIO) {
+			success = true;
 			goto cleanup;
 		}
 	}
 
-	if (writeToStdout)
+	if (!m_useStdIO && m_fileStream) {
+		if (!grk::safe_fclose(m_fileStream))
+			goto cleanup;
+		m_fileStream = nullptr;
+	}
+
+	if (m_useStdIO)
 		ncomp = 1;
 
 	/* YUV or MONO: */
-	if (image->numcomps > ncomp) {
+	if (m_image->numcomps > ncomp) {
 		spdlog::warn("[PGM file] Only the first component"
 					" is written out");
 	}
-	destname = (char*) malloc(strlen(outfile) + 8);
+	destname = (char*) malloc(strlen(m_fileName.c_str()) + 8);
 	if (!destname) {
 		spdlog::error("imagetopnm: out of memory");
 		goto cleanup;
@@ -767,7 +752,7 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 
 	for (compno = 0; compno < ncomp; compno++) {
 		if (ncomp > 1) {
-			const size_t olen = strlen(outfile);
+			const size_t olen = strlen(m_fileName.c_str());
 			if (olen < 4) {
 				spdlog::error(
 						" imagetopnm: output file name size less than 4.");
@@ -775,31 +760,31 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 			}
 			const size_t dotpos = olen - 4;
 
-			strncpy(destname, outfile, dotpos);
+			strncpy(destname, m_fileName.c_str(), dotpos);
 			sprintf(destname + dotpos, "_%u.pgm", compno);
 		} else
-			sprintf(destname, "%s", outfile);
+			sprintf(destname, "%s", m_fileName.c_str());
 
-		if (!fdest) {
-			if (!grk::grk_open_for_output(&fdest, destname,writeToStdout))
+		if (!m_fileStream) {
+			if (!grk::grk_open_for_output(&m_fileStream, destname,m_useStdIO))
 				goto cleanup;
 		}
 
-		width = image->comps[compno].w;
-		stride_diff = image->comps[compno].stride - width;
-		height = image->comps[compno].h;
-		prec = image->comps[compno].prec;
+		width = m_image->comps[compno].w;
+		stride_diff = m_image->comps[compno].stride - width;
+		height = m_image->comps[compno].h;
+		prec = m_image->comps[compno].prec;
 		max = (1 << prec) - 1;
 
-		fprintf(fdest, "P5\n#Grok-%s\n%u %u\n%u\n", grk_version(), width, height, max);
+		fprintf(m_fileStream, "P5\n#Grok-%s\n%u %u\n%u\n", grk_version(), width, height, max);
 
-		red = image->comps[compno].data;
+		red = m_image->comps[compno].data;
 		if (!red) {
 			goto cleanup;
 		}
 		adjustR = (
-				image->comps[compno].sgnd ?
-						1 << (image->comps[compno].prec - 1) : 0);
+				m_image->comps[compno].sgnd ?
+						1 << (m_image->comps[compno].prec - 1) : 0);
 
 		if (prec > 8) {
 			const size_t bufSize = 4096;
@@ -811,13 +796,13 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 				for (uint32_t i = 0; i < width; ++i){
 					v = *red++ + adjustR;
 					if (!grk::writeBytes<uint16_t>((uint16_t) v, buf, &outPtr,
-							&outCount, bufSize, true, fdest)) {
+							&outCount, bufSize, true, m_fileStream)) {
 						goto cleanup;
 					}
 					if (has_alpha) {
 						v = *alpha++;
 						if (!grk::writeBytes<uint16_t>((uint16_t) v, buf, &outPtr,
-								&outCount, bufSize, true, fdest)) {
+								&outCount, bufSize, true, m_fileStream)) {
 							goto cleanup;
 						}
 					}
@@ -828,7 +813,7 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 			}
 			//flush
 			if (outCount) {
-				size_t res = fwrite(buf, sizeof(uint16_t), outCount, fdest);
+				size_t res = fwrite(buf, sizeof(uint16_t), outCount, m_fileStream);
 				if (res != outCount){
 					goto cleanup;
 				}
@@ -842,7 +827,7 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 				for (uint32_t i = 0; i < width; ++i){
 					v = *red++ + adjustR;
 					if (!grk::writeBytes<uint8_t>((uint8_t) v, buf, &outPtr,
-							&outCount, bufSize, true, fdest)) {
+							&outCount, bufSize, true, m_fileStream)) {
 						goto cleanup;
 					}
 				}
@@ -851,35 +836,35 @@ static int imagetopnm(grk_image *image, const char *outfile, bool force_split) {
 					alpha += stride_diff;
 			}
 			if (outCount) {
-				size_t res = fwrite(buf, sizeof(uint8_t), outCount, fdest);
+				size_t res = fwrite(buf, sizeof(uint8_t), outCount, m_fileStream);
 				if (res != outCount){
 					goto cleanup;
 				}
 			}
 		}
-		if (!writeToStdout && fdest) {
-			if (!grk::safe_fclose(fdest)){
+		if (!m_useStdIO && m_fileStream) {
+			if (!grk::safe_fclose(m_fileStream)){
 				goto cleanup;
 			}
 		}
-		fdest = nullptr;
+		m_fileStream = nullptr;
 	} /* for (compno */
 
-	rc = 0;
+	success = true;
+
 cleanup:
 	if (destname)
 		free(destname);
-	if (!writeToStdout && fdest) {
-		if (!grk::safe_fclose(fdest))
-			rc = 1;
-	}
-	return rc;
-}/* imagetopnm() */
 
-bool PNMFormat::encode(grk_image *image, const std::string &filename,
-		uint32_t compressionParam) {
-	(void) compressionParam;
-	return imagetopnm(image, filename.c_str(), forceSplit) ? false : true;
+	return success;
+}
+bool PNMFormat::encodeFinish(void){
+	if (!m_useStdIO && m_fileStream) {
+		if (!grk::safe_fclose(m_fileStream))
+			return false;
+	}
+
+	return true;
 }
 grk_image* PNMFormat::decode(const std::string &filename,
 		grk_cparameters *parameters) {

@@ -42,6 +42,8 @@ set(compare_images_SRCS compare_images.cpp
   ${GROK_SOURCE_DIR}/src/bin/common/convert.cpp
   ${GROK_SOURCE_DIR}/src/bin/image_format/ImageFormat.cpp
   ${GROK_SOURCE_DIR}/src/bin/image_format/ImageFormat.h
+  ${GROK_SOURCE_DIR}/src/bin/image_format/FileStreamIO.h
+  ${GROK_SOURCE_DIR}/src/bin/image_format/FileStreamIO.cpp
   ${GROK_SOURCE_DIR}/src/bin/image_format/PNMFormat.cpp
   ${GROK_SOURCE_DIR}/src/bin/image_format/PNMFormat.h
   ${GROK_SOURCE_DIR}/src/bin/image_format/PGXFormat.cpp
@@ -52,6 +54,10 @@ set(compare_images_SRCS compare_images.cpp
  if(GROK_HAVE_LIBTIFF)
  	list(APPEND compare_images_SRCS ${GROK_SOURCE_DIR}/src/bin/image_format/TIFFFormat.h)
 	list(APPEND compare_images_SRCS ${GROK_SOURCE_DIR}/src/bin/image_format/TIFFFormat.cpp)
+endif()
+
+if(GROK_HAVE_URING)
+	list(APPEND compare_images_SRCS ${GROK_SOURCE_DIR}/src/bin/image_format/FileUringIO.cpp)
 endif()
 
 if(GROK_HAVE_LIBPNG)
@@ -76,6 +82,11 @@ if(ZLIB_FOUND AND APPLE)
 else(ZLIB_FOUND AND APPLE)
   target_link_libraries(compare_images ${Z_LIBNAME})
 endif()
+ # liburing
+ if(URING)
+  target_link_libraries(compare_images uring)
+ endif()
+
 
 add_executable(compare_dump_files ${compare_dump_files_SRCS})
 

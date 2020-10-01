@@ -14,48 +14,9 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2006-2007, Parvatha Elangovan
- * Copyright (c) 2008, Jerome Fimes, Communications & Systemes <jerome.fimes@c-s.fr>
- * Copyright (c) 2011-2012, Centre National d'Etudes Spatiales (CNES), France
- * Copyright (c) 2012, CS Systemes d'Information, France
- *
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #pragma once
@@ -63,11 +24,13 @@
 #include <vector>
 #include <map>
 #include "CodingParams.h"
+#include <map>
 
 namespace grk {
 
 // includes marker and marker length (4 bytes)
 const uint32_t sot_marker_segment_len = 12U;
+const uint32_t grk_marker_length = 4U;
 
 const uint32_t SPCod_SPCoc_len = 5U;
 const uint32_t cod_coc_len = 5U;
@@ -136,24 +99,35 @@ const uint32_t default_number_mct_records = 10;
 #define J2K_MS_UNK 0		/**< UNKNOWN marker value */
 
 /**
- * Values that specify the status of the decoding process when decoding the main header.
- * These values may be combined with a | operator.
+ * Status of decoding process when decoding main header.
+ * These values may be combined with the | operator.
  * */
 enum J2K_STATUS {
-	J2K_DEC_STATE_NONE = 0x0000, /**< no decode state */
-	J2K_DEC_STATE_MH_SOC = 0x0001, /**< a SOC marker is expected */
-	J2K_DEC_STATE_MH_SIZ = 0x0002, /**< a SIZ marker is expected */
-	J2K_DEC_STATE_MH = 0x0004, /**< the decoding process is in the main header */
-	J2K_DEC_STATE_TPH_SOT = 0x0008, /**< the decoding process is in a tile part header and expects a SOT marker */
-	J2K_DEC_STATE_TPH = 0x0010, /**< the decoding process is in a tile part header */
-	J2K_DEC_STATE_NO_EOC = 0x0020, /**< the decoding process must not expect a EOC marker because the code stream is truncated */
-	J2K_DEC_STATE_DATA = 0x0040, /**< the decoding process is expecting to read tile data from the code stream */
-	J2K_DEC_STATE_EOC = 0x0080, /**< the decoding process has encountered the EOC marker */
-	J2K_DEC_STATE_ERR = 0x0100 /**< the decoding process has encountered an error */
+	J2K_DEC_STATE_NONE = 0x0000, 		/**< no decode state */
+	J2K_DEC_STATE_MH_SOC = 0x0001, 		/**< a SOC marker is expected */
+	J2K_DEC_STATE_MH_SIZ = 0x0002, 		/**< a SIZ marker is expected */
+	J2K_DEC_STATE_MH = 0x0004, 			/**< the decoding process is in the main header */
+	J2K_DEC_STATE_TPH_SOT = 0x0008, 	/**< the decoding process is in a tile part header
+	 	 	 	 	 	 	 	 	 	 	 and expects a SOT marker */
+	J2K_DEC_STATE_TPH = 0x0010, 		/**< the decoding process is in a tile part header */
+	J2K_DEC_STATE_NO_EOC = 0x0020, 		/**< the decoding process must not expect a EOC marker
+	 	 	 	 	 	 	 	 	 	 	 because the code stream is truncated */
+	J2K_DEC_STATE_DATA = 0x0040, 		/**< the decoding process is expecting
+	 	 	 	 	 	 	 	 	 	 	 to read tile data from the code stream */
+	J2K_DEC_STATE_EOC = 0x0080, 		/**< the decoding process has encountered the EOC marker */
+	J2K_DEC_STATE_ERR = 0x0100 			/**< the decoding process has encountered an error */
 };
 
+
+/**
+ * Allocate data for single image component
+ *
+ * @param image         image
+ */
+bool grk_image_single_component_data_alloc(	grk_image_comp *image);
+
 struct TileProcessor;
-typedef bool (*j2k_procedure)(CodeStream *codeStream, TileProcessor *tileProcessor, BufferedStream *stream);
+typedef bool (*j2k_procedure)(CodeStream *codeStream);
 
 
 struct  grk_dec_memory_marker_handler  {
@@ -162,23 +136,95 @@ struct  grk_dec_memory_marker_handler  {
 	/** value of the state when the marker can appear */
 	uint32_t states;
 	/** action linked to the marker */
-	bool (*handler)(CodeStream *codeStream, TileProcessor *tileProcessor,
-			uint8_t *p_header_data, uint16_t header_size);
+	bool (*handler)(CodeStream *codeStream, uint8_t *p_header_data, uint16_t header_size);
 } ;
 
-struct CodeStream {
+struct ICodeStream {
 
-	CodeStream(bool decode);
+   virtual ~ICodeStream(){}
+
+	/** Main header reading function handler */
+   virtual bool read_header(grk_header_info  *header_info, grk_image **p_image) = 0;
+
+	/** Decoding function */
+   virtual bool decompress( grk_plugin_tile *tile,	grk_image *p_image) = 0;
+
+	/** decompress tile*/
+   virtual bool decompress_tile(grk_image *p_image,	uint16_t tile_index) = 0;
+
+	/** Reading function used after code stream if necessary */
+   virtual bool end_decompress(void) = 0;
+
+	/** Setup decoder function handler */
+   virtual void init_decompress(grk_dparameters  *p_param) = 0;
+
+	/** Set decompress area function handler */
+   virtual bool set_decompress_area(grk_image *p_image,
+		   uint32_t start_x, uint32_t end_x, uint32_t start_y,	uint32_t end_y) = 0;
+
+   virtual bool start_compress(void) = 0;
+
+   virtual bool init_compress(grk_cparameters  *p_param,grk_image *p_image) = 0;
+
+   virtual bool compress(grk_plugin_tile* tile) = 0;
+
+   virtual bool compress_tile(uint16_t tile_index,	uint8_t *p_data, uint64_t data_size) = 0;
+
+   virtual bool end_compress(void) = 0;
+
+   virtual void dump(int32_t flag, FILE *out_stream) = 0;
+
+   virtual grk_codestream_info_v2* get_cstr_info(void) = 0;
+
+   virtual grk_codestream_index* get_cstr_index(void) = 0;
+};
+
+struct CodeStream : public ICodeStream {
+
+	CodeStream(bool decode, BufferedStream *stream);
 	~CodeStream();
 
-	bool isDecodingTilePartHeader() ;
-	TileCodingParams* get_current_decode_tcp(TileProcessor *tileProcessor);
+	/** Main header reading function handler */
+   bool read_header(grk_header_info  *header_info, grk_image **p_image);
 
-	bool read_marker(BufferedStream *stream, uint16_t *val);
+	/** Decoding function */
+   bool decompress( grk_plugin_tile *tile,grk_image *p_image);
+
+	/** decompress tile*/
+   bool decompress_tile(grk_image *p_image,	uint16_t tile_index);
+
+	/** Reading function used after code stream if necessary */
+   bool end_decompress(void);
+
+	/** Setup decoder function handler */
+   void init_decompress(grk_dparameters  *p_param);
+
+   bool start_compress(void);
+
+   bool init_compress(grk_cparameters  *p_param,grk_image *p_image);
+
+   bool compress(grk_plugin_tile* tile);
+
+   bool compress_tile(uint16_t tile_index,	uint8_t *p_data, uint64_t data_size);
+
+   bool end_compress(void);
+
+   void dump(int32_t flag, FILE *out_stream);
+
+   grk_codestream_info_v2* get_cstr_info(void);
+
+   grk_codestream_index* get_cstr_index();
+
+
+   bool isDecodingTilePartHeader() ;
+	TileCodingParams* get_current_decode_tcp(void);
+
+	bool read_marker(void);
+	bool read_marker_skip_unknown(void);
+	bool read_short(uint16_t *val);
 
 	bool process_marker(const grk_dec_memory_marker_handler* marker_handler,
-						uint16_t current_marker, uint16_t marker_size,
-						TileProcessor *tileProcessor,	BufferedStream *stream);
+						uint16_t current_marker, uint16_t marker_size);
 
 	/**
 	 * Sets the given area to be decoded. This function should be called right after grk_read_header
@@ -199,6 +245,7 @@ struct CodeStream {
 						uint32_t end_x,
 						uint32_t end_y);
 
+
 	/**
 	 * Allocate output buffer for multiple tile decode
 	 *
@@ -207,6 +254,63 @@ struct CodeStream {
 	 * @return true if successful
 	 */
 	bool alloc_multi_tile_output_data(grk_image *p_output_image);
+
+	bool parse_markers(bool *can_decode_tile_data);
+
+	bool init_header_writing(void);
+
+	bool read_header_procedure(void);
+
+	bool do_decompress(grk_image *p_image);
+
+	bool decompress_tile_t2t1(TileProcessor *tileProcessor, bool multi_tile) ;
+
+	bool decompress_tile();
+
+	bool decompress_tile_t2(TileProcessor *tileProcessor);
+
+	bool decompress_tiles(void);
+
+	bool decompress_validation(void);
+
+	bool write_tile_part(TileProcessor *tileProcessor);
+
+	bool post_write_tile(TileProcessor *tileProcessor);
+
+	bool get_end_header(void);
+
+	bool copy_default_tcp(void);
+
+	bool update_rates(void);
+
+	bool compress_validation(void);
+	/**
+	 * Executes the given procedures on the given codec.
+	 *
+	 * @param       p_procedure_list        the list of procedures to execute
+	 * @param       stream                the stream to execute the procedures on.
+	 *
+	 * @return      true                            if all the procedures were successfully executed.
+	 */
+	bool exec(std::vector<j2k_procedure> &p_procedure_list);
+
+
+	/**
+	 * Checks for invalid number of tile-parts in SOT marker (TPsot==TNsot). See issue 254.
+	 *
+	 * @param		codeStream							JPEG 2000 code stream
+	 * @param       p_correction_needed output value. 	if true, nonconformant code stream needs TNsot correction.
+
+	 *
+	 * @return true if the function was successful, false otherwise.
+	 */
+
+	bool need_nb_tile_parts_correction(bool *p_correction_needed);
+
+	bool mct_validation(void);
+
+	bool read_unk(uint16_t *output_marker);
+
 
 
 	// state of decoder/encoder
@@ -231,43 +335,45 @@ struct CodeStream {
 	/** helper used to write the index file */
 	 grk_codestream_index  *cstr_index;
 
+	int32_t tileIndexToDecode();
+
+	TileProcessor* allocateProcessor(uint16_t tile_index);
+	TileProcessor* currentProcessor(void);
+
+	BufferedStream* getStream();
+
+private:
+
 	/** current TileProcessor **/
 	TileProcessor *m_tileProcessor;
 
+	BufferedStream *m_stream;
 
-	/** index of the tile to decompress (used in get_tile);
+
+	std::map<uint32_t, TileProcessor*> m_processors;
+
+
+	/** index of single tile to decompress;
 	 *  !!! initialized to -1 !!! */
 	int32_t m_tile_ind_to_dec;
 
-private:
 
 	uint8_t *m_marker_scratch;
 	uint16_t m_marker_scratch_size;
     /** Only valid for decoding. Whether the whole tile is decoded, or just the region in win_x0/win_y0/win_x1/win_y1 */
 
 public:
+	uint16_t m_curr_marker;
     bool   whole_tile_decoding;
 	grk_plugin_tile *current_plugin_tile;
-	/** TNsot correction : see issue 254 **/
 	bool m_nb_tile_parts_correction_checked;
-	bool m_nb_tile_parts_correction;
+	uint32_t m_nb_tile_parts_correction;
 
 };
 
 /** @name Exported functions */
 /*@{*/
 /* ----------------------------------------------------------------------- */
-
-/**
- Setup the decoder decoding parameters using user parameters.
- Decoding parameters are returned in j2k->cp.
- @param j2k J2K decompressor handle
- @param parameters decompression parameters
- */
-void j2k_init_decompressor(void *j2k,  grk_dparameters  *parameters);
-
-bool j2k_init_compress(CodeStream *codeStream,  grk_cparameters  *parameters,
-		grk_image *image);
 
 /**
  Converts an enum type progression order to string type
@@ -279,107 +385,7 @@ char* j2k_convert_progression_order(GRK_PROG_ORDER prg_order);
 
 /*@}*/
 
-/**
- * Ends the decompression procedures and possibiliy add data to be read after the
- * code stream.
- */
-bool j2k_end_decompress(CodeStream *j2k, BufferedStream *stream);
-
-/**
- * Read a JPEG 2000 code stream header.
- *
- * @param stream stream to read data from.
- * @param codeStream  JPEG 2000 code stream.
- * @param header_info  header info struct to store header info
- * @param image  pointer to image
- * @return true if the box is valid.
- */
-bool j2k_read_header(BufferedStream *stream, CodeStream *codeStream,
-		 grk_header_info  *header_info, grk_image **image);
-
-/**
- * Destroys a JPEG 2000 code stream.
- *
- * @param	codeStream	the jpeg20000 structure to destroy.
- */
-void j2k_destroy(CodeStream *codeStream);
-
-
-/**
- * Reads a tile header.
- * @param	codeStream		JPEG 2000 code stream
- * @param   tileProcessor 	tile processor
- * @param	can_decode_tile_data 		set to true if tile data is ready to be decoded
- * @param	stream			buffered stream.
- *
-  * @return	true			if tile header could be read
- */
-bool j2k_read_tile_header(CodeStream *codeStream, TileProcessor *tileProcessor,
-		bool *can_decode_tile_data, BufferedStream *stream);
-
-/**
- * Set the given area to be decoded. This function should be called
- * right after grk_read_header and before any tile header reading.
- *
- * @param	codeStream		JPEG 2000 code stream
- * @param	image     	image
- * @param	start_x		left position of the rectangle to decompress (in image coordinates).
- * @param	start_y		top position of the rectangle to decompress (in image coordinates).
- * @param	end_x		right position of the rectangle to decompress (in image coordinates).
- * @param	end_y		bottom position of the rectangle to decompress (in image coordinates).
- *
- * @return	true			if the area could be set.
- */
-bool j2k_set_decompress_area(CodeStream *codeStream, grk_image *image, uint32_t start_x,
-		uint32_t start_y, uint32_t end_x, uint32_t end_y);
-
-/**
- * Decode an image from a JPEG 2000 code stream
- * @param codeStream    code stream
- * @param tile    		plugin tile
- * @param stream  		stream
- * @param image   		image
- *
- * @return true if decompression is successful
- */
-bool j2k_decompress(CodeStream *codeStream, grk_plugin_tile *tile, BufferedStream *stream,
-		grk_image *image);
-
-bool j2k_decompress_tile(CodeStream *codeStream, BufferedStream *stream, grk_image *p_image, uint16_t tile_index);
-
-
-/**
- * Writes a tile.
- * @param	codeStream				JPEG 2000 code stream
- * @param	tileProcessor			tile processor
- * @param tile_index 				tile index
- * @param data						uncompressed data
- * @param uncompressed_data_size 	uncompressed data size
- * @param	stream					buffered stream.
- 
- */
-bool j2k_compress_tile(CodeStream *codeStream, TileProcessor *tileProcessor,
-		uint16_t tile_index, uint8_t *p_data,
-		uint64_t uncompressed_data_size, BufferedStream *stream);
-
-/**
- * Encodes an image into a JPEG 2000 code stream
- */
-bool j2k_compress(CodeStream *codeStream, grk_plugin_tile *tile, BufferedStream *stream);
-
-/**
- * Starts a compression scheme, i.e. validates the codec parameters, writes the header.
- * @param	codeStream		JPEG 2000 code stream
- * @param	stream			the stream object.
- * @return true if the codec is valid.
- */
-bool j2k_start_compress(CodeStream *codeStream, BufferedStream *stream);
-
-/**
- * Ends the compression procedures and possibility add data to be read after the
- * code stream.
- */
-bool j2k_end_compress(CodeStream *codeStream, BufferedStream *stream);
+bool j2k_decompress_tile(CodeStream *codeStream, grk_image *p_image, uint16_t tile_index);
 
 bool j2k_init_mct_encoding(TileCodingParams *p_tcp, grk_image *p_image);
 

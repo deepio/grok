@@ -12,46 +12,11 @@
  *
  *    You should have received a copy of the GNU Affero General Public License
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
  *
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
- *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2006-2007, Parvatha Elangovan
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
 /**
@@ -200,7 +165,7 @@ static grk_image* pgxtoimage(const char *filename,
 	cmptparm.dy = parameters->subsampling_dy;
 
 	/* create the image */
-	image = grk_image_create(numcomps, &cmptparm, color_space);
+	image = grk_image_create(numcomps, &cmptparm, color_space,true);
 	if (!image) {
 		goto cleanup;
 	}
@@ -248,11 +213,21 @@ static grk_image* pgxtoimage(const char *filename,
 	return image;
 }
 
-static int imagetopgx(grk_image *image, const char *outfile) {
-	int fails = 1;
-	FILE *fdest = nullptr;
-	for (uint32_t compno = 0; compno < image->numcomps; compno++) {
-		auto comp = &image->comps[compno];
+bool PGXFormat::encodeHeader(grk_image *image, const std::string &filename,
+		uint32_t compressionParam) {
+	(void) compressionParam;
+	m_image = image;
+	m_fileName = filename;
+
+	return true;
+}
+bool PGXFormat::encodeStrip(uint32_t rows){
+	(void)rows;
+
+	const char* outfile = m_fileName.c_str();
+	bool success = false;
+	for (uint32_t compno = 0; compno < m_image->numcomps; compno++) {
+		auto comp = &m_image->comps[compno];
 		char bname[4096]; /* buffer for name */
 		bname[4095] = '\0';
 		int nbytes = 0;
@@ -276,9 +251,8 @@ static int imagetopgx(grk_image *image, const char *outfile) {
 		memcpy(bname, outfile, dotpos);
 		//add new tag
 		sprintf(bname + dotpos, "_%u.pgx", compno);
-		fdest = fopen(bname, "wb");
-		if (!fdest) {
-
+		m_fileStream = fopen(bname, "wb");
+		if (!m_fileStream) {
 			spdlog::error("failed to open {} for writing", bname);
 			goto beach;
 		}
@@ -286,7 +260,7 @@ static int imagetopgx(grk_image *image, const char *outfile) {
 		uint32_t w = comp->w;
 		uint32_t h = comp->h;
 
-		fprintf(fdest, "PG ML %c %u %u %u\n", comp->sgnd ? '-' : '+',
+		fprintf(m_fileStream, "PG ML %c %u %u %u\n", comp->sgnd ? '-' : '+',
 				comp->prec, w, h);
 
 		if (comp->prec <= 8)
@@ -305,7 +279,7 @@ static int imagetopgx(grk_image *image, const char *outfile) {
 				for (uint32_t i = 0; i <  w; ++i) {
 					const int val = comp->data[index++];
 					if (!grk::writeBytes<uint8_t>((uint8_t) val, buf, &outPtr,
-							&outCount, bufSize, true, fdest)) {
+							&outCount, bufSize, true, m_fileStream)) {
 						spdlog::error("failed to write bytes for {}", bname);
 						goto beach;
 					}
@@ -313,7 +287,7 @@ static int imagetopgx(grk_image *image, const char *outfile) {
 				index += stride_diff;
 			}
 			if (outCount) {
-				size_t res = fwrite(buf, sizeof(uint8_t), outCount, fdest);
+				size_t res = fwrite(buf, sizeof(uint8_t), outCount, m_fileStream);
 				if (res != outCount) {
 					spdlog::error("failed to write bytes for {}", bname);
 					goto beach;
@@ -325,9 +299,9 @@ static int imagetopgx(grk_image *image, const char *outfile) {
 			uint16_t *outPtr = buf;
 			for (uint32_t j = 0; j < h; ++j) {
 				for (uint32_t i = 0; i <  w; ++i) {
-					const int val = image->comps[compno].data[index++];
+					const int val = m_image->comps[compno].data[index++];
 					if (!grk::writeBytes<uint16_t>((uint16_t) val, buf, &outPtr,
-							&outCount, bufSize, true, fdest)) {
+							&outCount, bufSize, true, m_fileStream)) {
 						spdlog::error("failed to write bytes for {}", bname);
 						goto beach;
 					}
@@ -335,31 +309,34 @@ static int imagetopgx(grk_image *image, const char *outfile) {
 				index += stride_diff;
 			}
 			if (outCount) {
-				size_t res = fwrite(buf, sizeof(uint16_t), outCount, fdest);
+				size_t res = fwrite(buf, sizeof(uint16_t), outCount, m_fileStream);
 				if (res != outCount) {
 					spdlog::error("failed to write bytes for {}", bname);
 					goto beach;
 				}
 			}
 		}
-		if (!grk::safe_fclose(fdest)) {
-			fdest = nullptr;
+		if (!grk::safe_fclose(m_fileStream)) {
+			m_fileStream = nullptr;
 			goto beach;
 		}
-		fdest = nullptr;
+		m_fileStream = nullptr;
 	}
-	fails = 0;
-	beach: if (!grk::safe_fclose(fdest)) {
-		fails = 1;
+	success = true;
+beach:
+	return success;
+}
+bool PGXFormat::encodeFinish(void){
+	bool success = true;
+
+	if (!grk::safe_fclose(m_fileStream)) {
+		success = false;
 	}
-	return fails;
+	m_fileStream = nullptr;
+
+	return success;
 }
 
-bool PGXFormat::encode(grk_image *image, const std::string &filename,
-		uint32_t compressionParam) {
-	(void) compressionParam;
-	return imagetopgx(image, filename.c_str()) ? false : true;
-}
 grk_image* PGXFormat::decode(const std::string &filename,
 		grk_cparameters *parameters) {
 	return pgxtoimage(filename.c_str(), parameters);

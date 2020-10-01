@@ -16,13 +16,14 @@
  */
 #pragma once
 
-#include "IImageFormat.h"
+#include "ImageFormat.h"
 
-class PNMFormat : public IImageFormat {
+class PNMFormat : public ImageFormat {
 public:
 	explicit PNMFormat(bool split) : forceSplit(split) {}
-	virtual ~PNMFormat()  {}
-	bool encode(grk_image *  image, const std::string &filename, uint32_t compressionParam) override;
+	bool encodeHeader(grk_image *  image, const std::string &filename, uint32_t compressionParam) override;
+	bool encodeStrip(uint32_t rows) override;
+	bool encodeFinish(void) override;
 	grk_image *  decode(const std::string &filename,  grk_cparameters  *parameters) override;
 private:
 	bool forceSplit;

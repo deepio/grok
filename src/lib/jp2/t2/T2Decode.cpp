@@ -14,47 +14,12 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2008, 2011-2012, Centre National d'Etudes Spatiales (CNES), FR
- * Copyright (c) 2012, CS Systemes d'Information, France
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "grok_includes.h"
+
+#include "grk_includes.h"
 #include "testing.h"
 #include <memory>
 
@@ -100,7 +65,7 @@ bool T2Decode::decode_packets(uint16_t tile_no, ChunkBuffer *src_buf,
 		if (current_pi->poc.prg == GRK_PROG_UNKNOWN) {
 			pi_destroy(pi, nb_pocs);
 			delete[] first_pass_failed;
-			GROK_ERROR("decode_packets: Unknown progression order");
+			GRK_ERROR("decode_packets: Unknown progression order");
 			return false;
 		}
 		while (pi_next(current_pi)) {
@@ -114,7 +79,7 @@ bool T2Decode::decode_packets(uint16_t tile_no, ChunkBuffer *src_buf,
 				pltMarkerLen = packetLengths->getNext();
 
 			/*
-			 GROK_INFO(
+			 GRK_INFO(
 			 "packet prg=%u cmptno=%02d rlvlno=%02d prcno=%03d layrno=%02d\n",
 			 current_pi->poc.prg1, current_pi->compno,
 			 current_pi->resno, current_pi->precno,
@@ -151,8 +116,8 @@ bool T2Decode::decode_packets(uint16_t tile_no, ChunkBuffer *src_buf,
 						delete[] first_pass_failed;
 						return false;
 					}
-					tileProcessor->m_resno_decoded[current_pi->compno] = std::max<uint32_t>(current_pi->resno,
-							tileProcessor->m_resno_decoded[current_pi->compno]);
+					tileProcessor->m_resno_decoded_per_component[current_pi->compno] = std::max<uint32_t>(current_pi->resno,
+							tileProcessor->m_resno_decoded_per_component[current_pi->compno]);
 
 				} else {
 					if (pltMarkerLen) {
@@ -166,18 +131,19 @@ bool T2Decode::decode_packets(uint16_t tile_no, ChunkBuffer *src_buf,
 					}
 				}
 			} 	catch (TruncatedStreamException &tex){
-				GROK_WARN("Truncated packet: tile=%d component=%02d resolution=%02d precinct=%03d layer=%02d",
+				GRK_WARN("Truncated packet: tile=%d component=%02d resolution=%02d precinct=%03d layer=%02d",
 				 tile_no, current_pi->compno, current_pi->resno,
 				 current_pi->precno, current_pi->layno);
+				break;
 			}
 			if (first_pass_failed[current_pi->compno]) {
-				if (tileProcessor->m_resno_decoded[current_pi->compno]  == 0) {
-					tileProcessor->m_resno_decoded[current_pi->compno] =
+				if (tileProcessor->m_resno_decoded_per_component[current_pi->compno]  == 0) {
+					tileProcessor->m_resno_decoded_per_component[current_pi->compno] =
 							p_tile->comps[current_pi->compno].resolutions_to_decompress
 									- 1;
 				}
 			}
-			//GROK_INFO("T2Decode Packet length: %u", nb_bytes_read);
+			//GRK_INFO("T2Decode Packet length: %u", nb_bytes_read);
 			*p_data_read += nb_bytes_read;
 		}
 		delete[] first_pass_failed;
@@ -189,11 +155,12 @@ bool T2Decode::decode_packets(uint16_t tile_no, ChunkBuffer *src_buf,
 
 bool T2Decode::decode_packet(TileCodingParams *p_tcp, PacketIter *p_pi, ChunkBuffer *src_buf,
 		uint64_t *p_data_read) {
-	uint64_t max_length = src_buf->data_len - src_buf->get_global_offset();
+	uint64_t max_length = src_buf->getRemainingLength();
 	if (max_length == 0) {
-		GROK_WARN("decode_packet: No data for either packet header\n"
+		GRK_WARN("Tile %d decode_packet: No data for either packet header\n"
 				"or packet body for packet prg=%u "
 				"cmptno=%02d reslvlno=%02d prcno=%03d layrno=%02d",
+		tileProcessor->m_tile_index,
 		 p_pi->poc.prg1, p_pi->compno,
 		 p_pi->resno, p_pi->precno,
 		 p_pi->layno);
@@ -227,7 +194,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 	auto p_tile = tileProcessor->tile;
 	auto res = &p_tile->comps[p_pi->compno].resolutions[p_pi->resno];
 	auto p_src_data = src_buf->get_global_ptr();
-	uint64_t max_length = src_buf->data_len - src_buf->get_global_offset();
+	uint64_t max_length = src_buf->getRemainingLength();
 	uint64_t nb_code_blocks = 0;
 	auto active_src = p_src_data;
 
@@ -239,7 +206,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 				continue;
 			auto prc = &band->precincts[p_pi->precno];
 			if (!(p_pi->precno < (band->numPrecincts))) {
-				GROK_ERROR("Invalid precinct");
+				GRK_ERROR("Invalid precinct");
 				return false;
 			}
 			if (prc->incltree)
@@ -257,14 +224,14 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 	/* SOP markers */
 	if (p_tcp->csty & J2K_CP_CSTY_SOP) {
 		if (max_length < 6) {
-			GROK_WARN("Not enough space for expected SOP marker");
+			GRK_WARN("Not enough space for expected SOP marker");
 		} else if ((*active_src) != 0xff || (*(active_src + 1) != 0x91)) {
-			GROK_WARN("Expected SOP marker");
+			GRK_WARN("Expected SOP marker");
 		} else {
 			uint16_t packno = (uint16_t) (((uint16_t) active_src[4] << 8)
 					| active_src[5]);
 			if (packno != (p_tile->packno % 0x10000)) {
-				GROK_ERROR(
+				GRK_ERROR(
 						"SOP marker packet counter %u does not match expected counter %u",
 						packno, p_tile->packno);
 				return false;
@@ -287,7 +254,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 	auto cp = tileProcessor->m_cp;
 	if (cp->ppm_marker) { /* PPM */
 		if (tileProcessor->m_tile_index >= cp->ppm_marker->m_tile_packet_headers.size()){
-			GROK_ERROR("PPM marker has no packed packet header data for tile %d",
+			GRK_ERROR("PPM marker has no packed packet header data for tile %d",
 					tileProcessor->m_tile_index+1);
 			return false;
 		}
@@ -315,7 +282,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 	if (*modified_length_ptr) {
 		bio->read(&present, 1);
 	}
-	//GROK_INFO("present=%u ", present);
+	//GRK_INFO("present=%u ", present);
 	if (!present) {
 		bio->inalign();
 		header_data += bio->numbytes();
@@ -324,9 +291,9 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 		if (p_tcp->csty & J2K_CP_CSTY_EPH) {
 			if ((*modified_length_ptr
 					- (size_t) (header_data - *header_data_start)) < 2U) {
-				GROK_WARN("Not enough space for expected EPH marker");
+				GRK_WARN("Not enough space for expected EPH marker");
 			} else if ((*header_data) != 0xff || (*(header_data + 1) != 0x92)) {
-				GROK_WARN("Expected EPH marker");
+				GRK_WARN("Expected EPH marker");
 			} else {
 				header_data += 2;
 			}
@@ -359,7 +326,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 
 				if (value != tag_tree_uninitialized_node_value
 						&& value != p_pi->layno) {
-					GROK_WARN("Tile number: %u",tileProcessor->m_tile_index+1);
+					GRK_WARN("Tile number: %u",tileProcessor->m_tile_index+1);
 					std::string msg =
 							"Illegal inclusion tag tree found when decoding packet header.\n";
 					msg +=
@@ -373,7 +340,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 					msg +=
 							"mis-interpretation of the standard.  The problem may also occur as a result of\n";
 					msg += "a corrupted code-stream";
-					GROK_WARN("%s", msg.c_str());
+					GRK_WARN("%s", msg.c_str());
 					tileProcessor->m_corrupt_packet = true;
 
 				}
@@ -393,7 +360,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 			/* if cblk not included */
 			if (!included) {
 				cblk->numPassesInPacket = 0;
-				//GROK_INFO("included=%u ", included);
+				//GRK_INFO("included=%u ", included);
 				continue;
 			}
 
@@ -415,7 +382,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 				K_msbs--;
 
 				if (K_msbs > band->numbps) {
-					GROK_WARN(
+					GRK_WARN(
 							"More missing bit planes (%u) than band bit planes (%u).",
 							K_msbs, band->numbps);
 					cblk->numbps = band->numbps;
@@ -425,7 +392,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 				// BIBO analysis gives sanity check on number of bit planes
 				if (cblk->numbps
 						> max_precision_jpeg_2000 + GRK_J2K_MAXRLVLS * 5) {
-					GROK_WARN("Number of bit planes %u is impossibly large.",
+					GRK_WARN("Number of bit planes %u is impossibly large.",
 							cblk->numbps);
 					return false;
 				}
@@ -463,7 +430,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 				if (seg->maxpasses == max_passes_per_segment) {
 					if (blockPassesInPacket
 							> (int32_t) max_passes_per_segment) {
-						GROK_WARN(
+						GRK_WARN(
 								"Number of code block passes (%u) in packet is suspiciously large.",
 								blockPassesInPacket);
 						// ToDO - we are truncating the number of passes at an arbitrary value of
@@ -483,7 +450,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 				uint32_t bits_to_read = cblk->numlenbits
 						+ floorlog2<uint32_t>(seg->numPassesInPacket);
 				if (bits_to_read > 32) {
-					GROK_ERROR(
+					GRK_ERROR(
 							"read_packet_header: too many bits in segment length ");
 					return false;
 				}
@@ -493,7 +460,7 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 							 cblk->numlenbits + floorlog2<uint32_t>(seg->numPassesInPacket)));
 #endif
 				/*
-				 GROK_INFO(
+				 GRK_INFO(
 				 "included=%u numPassesInPacket=%u increment=%u len=%u ",
 				 included, seg->numPassesInPacket, increment,
 				 seg->newlen);
@@ -518,17 +485,17 @@ bool T2Decode::read_packet_header(TileCodingParams *p_tcp, PacketIter *p_pi,
 	if (p_tcp->csty & J2K_CP_CSTY_EPH) {
 		if ((*modified_length_ptr
 				- (uint32_t) (header_data - *header_data_start)) < 2U) {
-			GROK_WARN("Not enough space for expected EPH marker");
+			GRK_WARN("Not enough space for expected EPH marker");
 		} else if ((*header_data) != 0xff || (*(header_data + 1) != 0x92)) {
-			GROK_WARN("Expected EPH marker");
+			GRK_WARN("Expected EPH marker");
 		} else {
 			header_data += 2;
 		}
 	}
 
 	auto header_length = (size_t) (header_data - *header_data_start);
-	//GROK_INFO("hdrlen=%u ", header_length);
-	//GROK_INFO("packet body\n");
+	//GRK_INFO("hdrlen=%u ", header_length);
+	//GRK_INFO("packet body\n");
 	*modified_length_ptr -= header_length;
 	*header_data_start += header_length;
 	*p_is_data_present = true;
@@ -565,16 +532,15 @@ bool T2Decode::read_packet_data(grk_resolution *res, PacketIter *p_pi,
 
 			uint32_t numPassesInPacket = cblk->numPassesInPacket;
 			do {
-				size_t offset = (size_t) src_buf->get_global_offset();
-				size_t len = src_buf->data_len;
+				size_t maxLen = src_buf->getRemainingLength();
 				// Check possible overflow on segment length
-				if (((offset + seg->numBytesInPacket) > len)) {
-					GROK_WARN("read packet data:\nSegment offset (%u) plus segment length %u\n"
-							"is greater than total length of all segments (%u)\n"
+				if (((seg->numBytesInPacket) > maxLen)) {
+					GRK_WARN("read packet data:\nSegment segment length %u\n"
+							"is greater than remaining total length of all segments (%u)\n"
 							"for codeblock %u (layer=%u, prec=%u, band=%u, res=%u, comp=%u).\n"
-							"Truncating packet data.", offset,	seg->numBytesInPacket,
-							len, cblkno, p_pi->layno, p_pi->precno, bandno, p_pi->resno, p_pi->compno);
-					seg->numBytesInPacket = (uint32_t) (len - offset);
+							"Truncating packet data.", seg->numBytesInPacket,
+							maxLen, cblkno, p_pi->layno, p_pi->precno, bandno, p_pi->resno, p_pi->compno);
+					seg->numBytesInPacket = (uint32_t) maxLen;
 				}
 				//initialize dataindex to current contiguous size of code block
 				if (seg->numpasses == 0)
@@ -665,14 +631,14 @@ bool T2Decode::skip_packet_data(grk_resolution *res, PacketIter *p_pi,
 				/* Check possible overflow then size */
 				if (((*p_data_read + seg->numBytesInPacket) < (*p_data_read))
 						|| ((*p_data_read + seg->numBytesInPacket) > max_length)) {
-					GROK_ERROR(
+					GRK_ERROR(
 							"skip: segment too long (%u) with max (%u) for codeblock %u (p=%u, b=%u, r=%u, c=%u)",
 							seg->numBytesInPacket, max_length, cblkno,
 							p_pi->precno, bandno, p_pi->resno, p_pi->compno);
 					return false;
 				}
 
-				//GROK_INFO( "skip packet: p_data_read = %u, bytes in packet =  %u ",
+				//GRK_INFO( "skip packet: p_data_read = %u, bytes in packet =  %u ",
 				//		*p_data_read, seg->numBytesInPacket);
 				*(p_data_read) += seg->numBytesInPacket;
 				seg->numpasses += seg->numPassesInPacket;

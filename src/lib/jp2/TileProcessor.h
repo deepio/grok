@@ -14,46 +14,11 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2008, 2011-2012, Centre National d'Etudes Spatiales (CNES), FR
- * Copyright (c) 2012, CS Systemes d'Information, France
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
+
 #pragma once
 #include "testing.h"
 #include <vector>
@@ -244,13 +209,14 @@ private:
  Tile coder/decoder
  */
 struct TileProcessor {
-	explicit TileProcessor(CodeStream *codeStream) ;
+	explicit TileProcessor(CodeStream *codeStream, BufferedStream *stream) ;
 	~TileProcessor();
 
 	/**
 	 * Allocates memory for decoding a specific tile.
 	 *
-	 * @param	output_image output image - stores the decompress region of interest
+	 * @param	output_image 	output image - stores the decompress region of interest
+	 * @param	isEncoder	 	true if tile will be encoded, otherwise false
 	 *
 	 * @return	true if the remaining data is sufficient.
 	 */
@@ -260,20 +226,18 @@ struct TileProcessor {
 
 	/**
 	 * Compress a tile from a raw image into stream.
-	 * @param	stream		stream
 	 * @param	tile_bytes_written	number of bytes written to stream
 	 * @return  true if the coding is successful.
 	 */
-	bool compress_tile_part(BufferedStream *stream,
-			uint32_t *tile_bytes_written);
+	bool compress_tile_part(uint32_t *tile_bytes_written);
 
-	bool pre_compress_first_tile_part(BufferedStream *stream);
+	bool pre_compress_first_tile_part(void);
 
 	/**
 	 * Compress a tile from a raw image into stream.
 	 * @return  true if the coding is successful.
 	 */
-	bool do_encode(BufferedStream *stream);
+	bool do_encode(void);
 
 
 	/**
@@ -300,24 +264,33 @@ struct TileProcessor {
 
 	void copy_image_to_tile();
 
+	bool prepare_sod_decoding(CodeStream *codeStream);
+
 	/** index of tile being currently coded/decoded */
 	uint16_t m_tile_index;
 
-	/** tile part index, regardless of poc.
+	/** Encoding Only
+	 *  tile part index, regardless of poc.
 	 *  for each new poc, tp is reset to 0*/
 	uint8_t m_poc_tile_part_index;
 
-	/** index of tile part being currently coding, taking into account POC.
-	 *  m_tile_part_index holds the total number of tile parts
-	 *   while encoding the last tile part.*/
+	/** Encoding Only
+	 *  index of tile part being currently coding, taking into account POC.
+	 *  m_tile_part_index holds the total number of tile parts encoded thus far
+	 *  while the compressor is encoding the current tile part.*/
 	uint8_t m_tile_part_index;
 
+	// Decoding Only
 	uint32_t tile_part_data_length;
 
-	/** Total number of tile parts of the tile*/
+	/** Encoding Only
+	 * Total number of tile parts of the tile*/
 	uint8_t totnum_tp;
-	/** Current packet iterator number */
+
+	/** Encoding Only
+	 *  Current packet iterator number */
 	uint32_t pino;
+
 	/** info on image tile */
 	grk_tile *tile;
 	/** image header */
@@ -329,12 +302,15 @@ struct TileProcessor {
 
 	PacketLengthMarkers *plt_markers;
 
-	/** coding parameters */
+	/** Coding parameters */
 	CodingParams *m_cp;
 
+	// Encoding only - track which packets have been arleady written
+	// to the code stream
 	PacketTracker m_packetTracker;
 
-	uint32_t* m_resno_decoded;
+	uint32_t* m_resno_decoded_per_component;
+	BufferedStream *m_stream;
 private:
 
 	/** position of the tile part flag in progression order*/
@@ -346,6 +322,8 @@ private:
 	 bool t2_decode(ChunkBuffer *src_buf,	uint64_t *p_data_read);
 
 	 bool is_whole_tilecomp_decoding( uint32_t compno);
+
+	 bool need_mct_decode(uint32_t compno);
 
 	 bool mct_decode();
 
@@ -359,8 +337,7 @@ private:
 
 	 void t1_encode();
 
-	 bool t2_encode(BufferedStream *stream,
-			uint32_t *packet_bytes_written);
+	 bool t2_encode(uint32_t *packet_bytes_written);
 
 	 bool rate_allocate(void);
 
@@ -381,7 +358,6 @@ private:
 			bool final);
 public:
 	 bool m_corrupt_packet;
-
 
 };
 

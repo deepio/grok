@@ -14,43 +14,8 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
- *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  */
 
 #include <stdio.h>
@@ -70,7 +35,7 @@
 
 //#define DEBUG_PROFILE
 
-static grk_image* image_create(uint32_t numcmpts, uint32_t w, uint32_t h,
+static grk_image* create_rgb_no_subsample_image(uint32_t numcmpts, uint32_t w, uint32_t h,
 		uint32_t prec) {
 	if (!numcmpts)
 		return nullptr;
@@ -92,7 +57,7 @@ static grk_image* image_create(uint32_t numcmpts, uint32_t w, uint32_t h,
 		cmptparms[compno].sgnd = 0U;
 	}
 	auto img = grk_image_create(numcmpts, (grk_image_cmptparm*) cmptparms,
-			GRK_CLRSPC_SRGB);
+			GRK_CLRSPC_SRGB,true);
 	free(cmptparms);
 	return img;
 
@@ -142,7 +107,7 @@ static void sycc_to_rgb(int32_t offset, int32_t upb, int32_t y, int32_t cb, int3
 
 static bool sycc444_to_rgb(grk_image *src_img) {
 	int32_t *d0, *d1, *d2, *r, *g, *b;
-	auto dest_img = image_create(3, src_img->comps[0].w, src_img->comps[0].h,
+	auto dest_img = create_rgb_no_subsample_image(3, src_img->comps[0].w, src_img->comps[0].h,
 			src_img->comps[0].prec);
 	if (!dest_img)
 		return false;
@@ -195,8 +160,8 @@ static bool sycc444_to_rgb(grk_image *src_img) {
 	return true;
 }/* sycc444_to_rgb() */
 
-static bool sycc422_to_rgb(grk_image *src_img) {
-	auto dest_img = image_create(3, src_img->comps[0].w, src_img->comps[0].h,
+static bool sycc422_to_rgb(grk_image *src_img, bool oddFirstX) {
+	auto dest_img = create_rgb_no_subsample_image(3, src_img->comps[0].w, src_img->comps[0].h,
 			src_img->comps[0].prec);
 	if (!dest_img)
 		return false;
@@ -225,11 +190,12 @@ static bool sycc422_to_rgb(grk_image *src_img) {
 	dest_img->comps[2].data = nullptr;
 
 	/* if img->x0 is odd, then first column shall use Cb/Cr = 0 */
-	uint32_t offx = src_img->x0 & 1U;
-	uint32_t loopmaxw = w - offx;
+	uint32_t loopmaxw = w;
+	if (oddFirstX)
+		loopmaxw--;
 
 	for (uint32_t i = 0U; i < h; ++i) {
-		if (offx > 0U)
+		if (oddFirstX)
 			sycc_to_rgb(offset, upb, *y++, 0, 0, r++, g++, b++);
 
 		uint32_t j;
@@ -271,8 +237,8 @@ static bool sycc422_to_rgb(grk_image *src_img) {
 
 }/* sycc422_to_rgb() */
 
-static bool sycc420_to_rgb(grk_image *src_img) {
-	auto dest_img = image_create(3, src_img->comps[0].w, src_img->comps[0].h,
+static bool sycc420_to_rgb(grk_image *src_img, bool oddFirstX, bool oddFirstY) {
+	auto dest_img = create_rgb_no_subsample_image(3, src_img->comps[0].w, src_img->comps[0].h,
 			src_img->comps[0].prec);
 	if (!dest_img)
 		return false;
@@ -296,22 +262,26 @@ static bool sycc420_to_rgb(grk_image *src_img) {
 
 
 	for (uint32_t i = 0; i < 3; ++i){
-		src[i] = src_img->comps[i].data;
+		auto src_comp = src_img->comps + i;
+		src[i] = src_comp->data;
+		stride_src[i] = src_comp->stride;
+		stride_src_diff[i] = src_comp->stride -  src_comp->w;
+
 		dest[i] = dest_ptr[i] = dest_img->comps[i].data;
 		dest_img->comps[i].data = nullptr;
-
-		stride_src[i] = src_img->comps[i].stride;
-		stride_src_diff[i] = src_img->comps[i].stride -  src_img->comps[i].w;
 	}
 
-	/* if img->x0 is odd, then first column shall use Cb/Cr = 0 */
-	uint32_t offx = src_img->x0 & 1U;
-	uint32_t loopmaxw = w - offx;
-	/* if img->y0 is odd, then first line shall use Cb/Cr = 0 */
-	uint32_t  offy = src_img->y0 & 1U;
-	uint32_t loopmaxh = h - offy;
+	uint32_t loopmaxw = w;
+	uint32_t loopmaxh = h;
 
-	if (offy > 0U) {
+	/* if img->x0 is odd, then first column shall use Cb/Cr = 0 */
+	if (oddFirstX)
+		loopmaxw--;
+	/* if img->y0 is odd, then first line shall use Cb/Cr = 0 */
+	if (oddFirstY)
+		loopmaxh--;
+
+	if (oddFirstX) {
 		for (size_t j = 0U; j < w; ++j)
 			sycc_to_rgb(offset, upb, *src[0]++, 0, 0, dest_ptr[0]++, dest_ptr[1]++, dest_ptr[2]++);
 		src[0]  += stride_src_diff[0];
@@ -325,7 +295,7 @@ static bool sycc420_to_rgb(grk_image *src_img) {
 		auto ng = dest_ptr[1] + stride_dest;
 		auto nb = dest_ptr[2] + stride_dest;
 
-		if (offx > 0U) {
+		if (oddFirstY) {
 			sycc_to_rgb(offset, upb, *src[0]++, 0, 0, dest_ptr[0]++, dest_ptr[1]++, dest_ptr[2]++);
 			sycc_to_rgb(offset, upb, *ny++, *src[1], *src[2], nr++, ng++, nb++);
 		}
@@ -377,10 +347,9 @@ static bool sycc420_to_rgb(grk_image *src_img) {
 
 }/* sycc420_to_rgb() */
 
-bool color_sycc_to_rgb(grk_image *img) {
+bool color_sycc_to_rgb(grk_image *img, bool oddFirstX, bool oddFirstY) {
 	if (img->numcomps < 3) {
-		spdlog::warn(
-				"color_sycc_to_rgb: number of components {} is less than 3."
+		spdlog::warn("color_sycc_to_rgb: number of components {} is less than 3."
 						" Unable to convert", img->numcomps);
 		return false;
 	}
@@ -389,11 +358,11 @@ bool color_sycc_to_rgb(grk_image *img) {
 	if ((img->comps[0].dx == 1) && (img->comps[1].dx == 2)
 			&& (img->comps[2].dx == 2) && (img->comps[0].dy == 1)
 			&& (img->comps[1].dy == 2) && (img->comps[2].dy == 2)) { /* horizontal and vertical sub-sample */
-		rc = sycc420_to_rgb(img);
+		rc = sycc420_to_rgb(img,oddFirstX, oddFirstY);
 	} else if ((img->comps[0].dx == 1) && (img->comps[1].dx == 2)
 			&& (img->comps[2].dx == 2) && (img->comps[0].dy == 1)
 			&& (img->comps[1].dy == 1) && (img->comps[2].dy == 1)) { /* horizontal sub-sample only */
-		rc = sycc422_to_rgb(img);
+		rc = sycc422_to_rgb(img, oddFirstX);
 	} else if ((img->comps[0].dx == 1) && (img->comps[1].dx == 1)
 			&& (img->comps[2].dx == 1) && (img->comps[0].dy == 1)
 			&& (img->comps[1].dy == 1) && (img->comps[2].dy == 1)) { /* no sub-sample */
@@ -428,7 +397,7 @@ void color_apply_icc_profile(grk_image *image, bool forceRGB) {
 	uint32_t prec, w, stride_diff, h;
 	GRK_COLOR_SPACE oldspace;
 	grk_image *new_image = nullptr;
-	if (image->numcomps == 0 || !grk::all_components_sanity_check(image))
+	if (image->numcomps == 0 || !grk::all_components_sanity_check(image,true))
 		return;
 	in_prof = cmsOpenProfileFromMem(image->icc_profile_buf,
 			image->icc_profile_len);
@@ -660,7 +629,7 @@ void color_apply_icc_profile(grk_image *image, bool forceRGB) {
 			goto cleanup;
 		}
 
-		new_image = image_create(2, image->comps[0].w, image->comps[0].h,
+		new_image = create_rgb_no_subsample_image(2, image->comps[0].w, image->comps[0].h,
 				image->comps[0].prec);
 		if (!new_image) {
 			free(inbuf);
@@ -735,7 +704,7 @@ void color_apply_icc_profile(grk_image *image, bool forceRGB) {
 // transform LAB colour space to sRGB @ 16 bit precision
 bool color_cielab_to_rgb(grk_image *src_img) {
 	// sanity checks
-	if (src_img->numcomps == 0 || !grk::all_components_sanity_check(src_img))
+	if (src_img->numcomps == 0 || !grk::all_components_sanity_check(src_img,true))
 		return false;
 	size_t i;
 	for (i = 1U; i < src_img->numcomps; ++i) {
@@ -773,7 +742,7 @@ bool color_cielab_to_rgb(grk_image *src_img) {
 	double r_L, o_L, r_a, o_a, r_b, o_b, prec_L, prec_a, prec_b;
 	double minL, maxL, mina, maxa, minb, maxb;
 	cmsUInt16Number RGB[3];
-	auto dest_img = image_create(3, src_img->comps[0].w, src_img->comps[0].h,
+	auto dest_img = create_rgb_no_subsample_image(3, src_img->comps[0].w, src_img->comps[0].h,
 			src_img->comps[0].prec);
 	if (!dest_img)
 		return false;
@@ -913,7 +882,7 @@ bool color_cmyk_to_rgb(grk_image *image) {
 	uint32_t w = image->comps[0].w;
 	uint32_t h = image->comps[0].h;
 
-	if ((image->numcomps < 4) || !grk::all_components_sanity_check(image))
+	if ((image->numcomps < 4) || !grk::all_components_sanity_check(image,true))
 		return false;
 
 	float sC = 1.0F / (float) ((1 << image->comps[0].prec) - 1);
@@ -967,7 +936,7 @@ bool color_esycc_to_rgb(grk_image *image) {
 	int32_t flip_value = (1 << (image->comps[0].prec - 1));
 	int32_t max_value = (1 << image->comps[0].prec) - 1;
 
-	if ((image->numcomps < 3) || !grk::all_components_sanity_check(image))
+	if ((image->numcomps < 3) || !grk::all_components_sanity_check(image,true))
 		return false;
 
 	uint32_t w = image->comps[0].w;

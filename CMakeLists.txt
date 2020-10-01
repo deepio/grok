@@ -17,7 +17,7 @@ include_regular_expression("^.*$")
 #-----------------------------------------------------------------------------
 # GROK version number, useful for packaging and doxygen doc:
 set(GROK_VERSION_MAJOR 7)
-set(GROK_VERSION_MINOR 5)
+set(GROK_VERSION_MINOR 6)
 set(GROK_VERSION_BUILD 0)
 set(GROK_VERSION
   "${GROK_VERSION_MAJOR}.${GROK_VERSION_MINOR}.${GROK_VERSION_BUILD}")
@@ -176,11 +176,40 @@ option(BUILD_UNIT_TESTS "Build unit tests (bench_dwt, test_sparse_array, etc..)"
 option(BUILD_CODEC "Build the CODEC executables" ON)
 option(BUILD_PLUGIN_LOADER "Enable loading of T1 plugin" OFF)
 mark_as_advanced(BUILD_PLUGIN_LOADER)
+option(URING OFF "Enable support for io_uring (requires liburing and Linux kernel >= 5.1)")
+mark_as_advanced(URING)
+
+#---Check for liburing----------------------------------------------------------------
+if (URING)
+  if(NOT CMAKE_SYSTEM_NAME MATCHES Linux)
+    set(URING OFF CACHE BOOL "Disabled because liburing is only available on Linux" FORCE)
+    message(STATUS "liburing was disabled : only available on Linux")
+    set(GROK_HAVE_URING undef)
+  else()
+    message(STATUS "Looking for liburing")
+    find_package(liburing)
+    if(NOT LIBURING_FOUND)
+      if(fail-on-missing)
+        message(FATAL_ERROR "liburing not found and uring option required")
+      else()
+        message(STATUS "liburing not found. Switching off uring option")
+        set(uring OFF CACHE BOOL "Disabled because liburing was not found (${uring_description})" FORCE)
+      endif()
+    else()
+    	message(STATUS "Found liburing") 
+    	set(GROK_HAVE_URING define)     
+    endif()
+  endif()
+endif()
 
 if(BUILD_CODEC)
-  # OFF: It will only build 3rd party libs if they are not found on the system
-  # ON: 3rd party libs will ALWAYS be build, and used
+  # OFF: 3rd party libs will only be built if not found in system
+  # ON:  3rd party libs will always be built
   option(BUILD_THIRDPARTY "Build the thirdparty executables if it is needed" OFF)
+  # OFF: libjpeg library wil not be used to support JPEG file format
+  # ON:  libjpeg library will be used to support JPEG file format,
+  #      if found in system
+  option(GRK_USE_LIBJPEG "Use libjpeg library to support JPEG file format, if present in system" OFF)
   add_subdirectory(thirdparty)
   add_subdirectory(src/bin)
 endif ()
@@ -215,8 +244,8 @@ if(BUILD_TESTING)
 
     # Search for Grok test data
     # The test data can be cloned from https://github.com/GrokImageCompression/grok-test-data
-    find_path(GROK_DATA_ROOT README-GROK-TEST-DATA
-      PATHS $ENV{GROK_DATA_ROOT} ${CMAKE_SOURCE_DIR}/../grok-test-data
+    find_path(GRK_DATA_ROOT README-GROK-TEST-DATA
+      PATHS $ENV{GRK_DATA_ROOT} ${CMAKE_SOURCE_DIR}/../grok-test-data
       NO_CMAKE_FIND_ROOT_PATH
       )
 

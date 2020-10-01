@@ -13,7 +13,7 @@
 # gracefully rejected. When adding a new test, please add a short summary of 
 # why this file should be rejected.
 #
-# You can use @INPUT_NR_PATH@ and @TEMP_PATH@ cmake variable which refers to GROK_DATA_ROOT 
+# You can use @INPUT_NR_PATH@ and @TEMP_PATH@ cmake variable which refers to GRK_DATA_ROOT 
 # repository. However you can use relative path or absolute path.
 
 # ENCODER TEST SUITE
@@ -209,8 +209,8 @@ grk_decompress -i  @INPUT_NR_PATH@/orb-blue10-win-j2k.j2k -o @TEMP_PATH@/orb-blu
 grk_decompress -i  @INPUT_NR_PATH@/orb-blue10-win-jp2.jp2 -o @TEMP_PATH@/orb-blue10-win-jp2.jp2.pgx
 grk_decompress -i  @INPUT_NR_PATH@/relax.jp2 -o @TEMP_PATH@/relax.jp2.pgx
 grk_decompress -i  @INPUT_NR_PATH@/test_lossless.j2k -o @TEMP_PATH@/test_lossless.j2k.pgx
-# text_GBR.jp2 file exhibt a error about a tile part with a index > of the number of tile-part in this tile (related to issue 202, 206, 208)
-grk_decompress -i  @INPUT_NR_PATH@/text_GBR.jp2 -o @TEMP_PATH@/text_GBR.jp2.pgx
+# text_GBR.jp2 file exhibt an error regarding a tile part with a index equal to the number of tile-part in tile (related to issue 202, 206, 208)
+!grk_decompress -i  @INPUT_NR_PATH@/text_GBR.jp2 -o @TEMP_PATH@/text_GBR.jp2.pgx
 # pacs.ge file should throw an error but finally it seems work with v2
 grk_decompress -i  @INPUT_NR_PATH@/pacs.ge.j2k -o @TEMP_PATH@/pacs.ge.j2k.pgx
 # related to issue 135 
@@ -221,7 +221,7 @@ grk_decompress -i  @INPUT_NR_PATH@/issue104_jpxstream.jp2 -o @TEMP_PATH@/issue10
 # File not supported by kakadu (Malformed PCLR box) and not supported by Grok (problem with value of TPSot)
 !grk_decompress -i  @INPUT_NR_PATH@/mem-b2ace68c-1381.jp2 -o @TEMP_PATH@/mem-b2ace68c-1381.jp2.pgx
 # File which produced weird output with kakadu and not supported by Grok (problem with value of TPSot, issue 202, 206, 208)
-grk_decompress -i  @INPUT_NR_PATH@/mem-b2b86b74-2753.jp2 -o @TEMP_PATH@/mem-b2b86b74-2753.jp2.pgx
+!grk_decompress -i  @INPUT_NR_PATH@/mem-b2b86b74-2753.jp2 -o @TEMP_PATH@/mem-b2b86b74-2753.jp2.pgx
 # issue 191 raised by the gdal fuzzer test (should properly failed)
 !grk_decompress -i  @INPUT_NR_PATH@/gdal_fuzzer_unchecked_numresolutions.jp2 -o @TEMP_PATH@/gdal_fuzzer_unchecked_numresolutions.pgx
 # issue 192 raised by the gdal fuzzer test (should nicely failed)
@@ -235,7 +235,7 @@ grk_decompress -i  @INPUT_NR_PATH@/file409752.jp2 -o @TEMP_PATH@/file409752.jp2.
 # issue 188 
 grk_decompress -i  @INPUT_NR_PATH@/issue188_beach_64bitsbox.jp2 -o @TEMP_PATH@/issue188_beach_64bitsbox.jp2.pgx
 # issue 206
-grk_decompress -i  @INPUT_NR_PATH@/issue206_image-000.jp2 -o @TEMP_PATH@/issue206_image-000.jp2.pgx
+!grk_decompress -i  @INPUT_NR_PATH@/issue206_image-000.jp2 -o @TEMP_PATH@/issue206_image-000.jp2.pgx
 # issue 205
 grk_decompress -i  @INPUT_NR_PATH@/issue205.jp2 -o @TEMP_PATH@/issue205.jp2.pgx
 # issue 225 (sumatrapdf)
@@ -243,7 +243,7 @@ grk_decompress -i  @INPUT_NR_PATH@/issue205.jp2 -o @TEMP_PATH@/issue205.jp2.pgx
 !grk_decompress -i @INPUT_NR_PATH@/1888.pdf.asan.35.988.jp2      -o @TEMP_PATH@/1888.pdf.asan.35.988.jp2.pgx
 !grk_decompress -i @INPUT_NR_PATH@/2539.pdf.SIGFPE.706.1712.jp2  -o @TEMP_PATH@/2539.pdf.SIGFPE.706.1712.jp2.pgx
 !grk_decompress -i @INPUT_NR_PATH@/2236.pdf.SIGSEGV.398.1376.jp2 -o @TEMP_PATH@/2236.pdf.SIGSEGV.398.1376.jp2.pgx
-!grk_decompress -i @INPUT_NR_PATH@/1336.pdf.asan.47.376.jp2      -o @TEMP_PATH@/1336.pdf.asan.47.376.jp2.pgx
+grk_decompress  -i @INPUT_NR_PATH@/1336.pdf.asan.47.376.jp2      -o @TEMP_PATH@/1336.pdf.asan.47.376.jp2.pgx
 !grk_decompress -i @INPUT_NR_PATH@/1851.pdf.SIGSEGV.ce9.948.jp2  -o @TEMP_PATH@/1851.pdf.SIGSEGV.ce9.948.jp2.pgx
 !grk_decompress -i @INPUT_NR_PATH@/4149.pdf.SIGSEGV.cf7.3501.jp2 -o @TEMP_PATH@/4149.pdf.SIGSEGV.cf7.3501.jp2.pgx
 !grk_decompress -i @INPUT_NR_PATH@/4035.pdf.SIGSEGV.d8b.3375.jp2 -o @TEMP_PATH@/4035.pdf.SIGSEGV.d8b.3375.jp2.pgx
@@ -263,7 +263,7 @@ grk_decompress -i @INPUT_NR_PATH@/issue228.j2k                  -o @TEMP_PATH@/i
 !grk_decompress -i @INPUT_NR_PATH@/0290cb77c5df21828fa74cf2ab2c84d8.SIGFPE.d25.31.jp2  -o @TEMP_PATH@0290cb77c5df21828fa74cf2ab2c84d8.SIGFPE.d25.31.jp2.pgx
 !grk_decompress -i @INPUT_NR_PATH@/3672da2f1f67bbecad27d7181b4e9d7c.SIGFPE.d25.805.jpc -o @TEMP_PATH@3672da2f1f67bbecad27d7181b4e9d7c.SIGFPE.d25.805.jpc.pgx
 # issue 254 (loss in quality)
-grk_decompress -i @INPUT_NR_PATH@/issue254.jp2                  -o @TEMP_PATH@/issue254.jp2.pgx
+!grk_decompress -i @INPUT_NR_PATH@/issue254.jp2                  -o @TEMP_PATH@/issue254.jp2.pgx
 # issue 142
 grk_decompress -i @INPUT_NR_PATH@/issue142.j2k                  -o @TEMP_PATH@/issue142.j2k.pgx
 # issue 134
@@ -271,7 +271,7 @@ grk_decompress -i @INPUT_NR_PATH@/issue134.jp2                  -o @TEMP_PATH@/i
 # issue 135
 grk_decompress -i @INPUT_NR_PATH@/issue135.j2k                  -o @TEMP_PATH@/issue135.j2k.pgx
 # issue 208
-grk_decompress -i @INPUT_NR_PATH@/issue208.jp2                  -o @TEMP_PATH@/issue208.jp2.pgx
+!grk_decompress -i @INPUT_NR_PATH@/issue208.jp2                  -o @TEMP_PATH@/issue208.jp2.pgx
 # issue 211
 grk_decompress -i @INPUT_NR_PATH@/issue211.jp2                  -o @TEMP_PATH@/issue211.jp2.pgx
 # issue 171
@@ -495,7 +495,7 @@ grk_decompress -i @INPUT_NR_PATH@/basn6a08.jp2 -o @TEMP_PATH@/basn6a08_tif-14.ti
 grk_decompress -i @INPUT_NR_PATH@/basn6a08.jp2 -o @TEMP_PATH@/basn6a08_tif-16.tif -p 16S
 
 #issue 235 CMAP outside jp2h box. CMAP is buggy
-grk_decompress -i @INPUT_NR_PATH@/issue235.jp2 -o @TEMP_PATH@/issue235.jp2.pgx
+!grk_decompress -i @INPUT_NR_PATH@/issue235.jp2 -o @TEMP_PATH@/issue235.jp2.pgx
 
 # issue 264, add checks for png
 # GRAYSCALE 
@@ -550,8 +550,8 @@ grk_decompress -i @INPUT_NR_PATH@/issue205.jp2 -o @TEMP_PATH@/issue205-tif.jp2.t
 grk_decompress -i @INPUT_NR_PATH@/issue236-ESYCC-CDEF.jp2 -o @TEMP_PATH@/issue236-ESYCC-CDEF.jp2.pgx
 
 # issue 326 + PR 559: CIELab colorspace
-grk_decompress -i @INPUT_NR_PATH@/issue559-eci-090-CIELab.jp2 -o @TEMP_PATH@/issue559-eci-090-CIELab.jp2.pgx
-grk_decompress -i @INPUT_NR_PATH@/issue559-eci-091-CIELab.jp2 -o @TEMP_PATH@/issue559-eci-091-CIELab.jp2.pgx
+!grk_decompress -i @INPUT_NR_PATH@/issue559-eci-090-CIELab.jp2 -o @TEMP_PATH@/issue559-eci-090-CIELab.jp2.pgx
+!grk_decompress -i @INPUT_NR_PATH@/issue559-eci-091-CIELab.jp2 -o @TEMP_PATH@/issue559-eci-091-CIELab.jp2.pgx
 
 # issue 653 Last box of undefined size byg
 grk_decompress -i @INPUT_NR_PATH@/issue653-zero-unknownbox.jp2 -o @TEMP_PATH@/issue653-zero-unknownbox.jp2.png -L 9 -p 8S
@@ -623,3 +623,19 @@ grk_decompress -i @INPUT_NR_PATH@/Bretagne2_ht_lossy.j2k -o @TEMP_PATH@/Bretagne
 grk_decompress -i @INPUT_NR_PATH@/4bpp.j2k   -o @TEMP_PATH@/4bpp.bmp
 grk_decompress -i @INPUT_NR_PATH@/truncated.jp2  -o @TEMP_PATH@/truncated.bmp
 grk_decompress -i @INPUT_CONF_PATH@/p1_05.j2k -o @TEMP_PATH@/ppm_tile1.tif -t 1
+
+grk_compress -i @INPUT_NR_PATH@/BMP_v5_with_ICC.bmp -o @TEMP_PATH@/BMP_v5_with_ICC.jp2
+grk_compress -i @INPUT_NR_PATH@/BMP_v5_with_ICC2.bmp -o @TEMP_PATH@/BMP_v5_with_ICC2.jp2
+grk_decompress -i @TEMP_PATH@/BMP_v5_with_ICC.jp2 -o @TEMP_PATH@/BMP_v5_with_ICC.bmp
+grk_decompress -i @TEMP_PATH@/BMP_v5_with_ICC2.jp2 -o @TEMP_PATH@/BMP_v5_with_ICC2.bmp
+grk_decompress -i @TEMP_PATH@/BMP_v5_with_ICC.jp2 -o @TEMP_PATH@/BMP_v5_with_ICC.png
+grk_decompress -i @TEMP_PATH@/BMP_v5_with_ICC2.jp2 -o @TEMP_PATH@/BMP_v5_with_ICC2.png
+grk_compress   -i @INPUT_NR_PATH@/ybr-cat.tif -o @TEMP_PATH@/ybr-cat.jp2
+grk_decompress -i @TEMP_PATH@/ybr-cat.jp2 -o @TEMP_PATH@/ybr-cat.tif   -d 2,2,201,301
+# test corrupt HT image
+grk_decompress -i @INPUT_NR_PATH@/clusterfuzz-testcase-minimized-grk_decompress_fuzzer-5713875855736832 -o @TEMP_PATH@/clusterfuzz-testcase-minimized-grk_decompress_fuzzer-5713875855736832.pgx
+# test odd dimension mono bmp output
+grk_decompress -i @INPUT_NR_PATH@/cinema129x129.jp2 -o @TEMP_PATH@/cinema129x129.bmp
+
+
+

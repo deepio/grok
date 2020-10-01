@@ -13,54 +13,55 @@
  *    You should have received a copy of the GNU Affero General Public License
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
- *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2006-2007, Parvatha Elangovan
- * Copyright (c) 2008, Jerome Fimes, Communications & Systemes <jerome.fimes@c-s.fr>
- * Copyright (c) 2011-2012, Centre National d'Etudes Spatiales (CNES), France
- * Copyright (c) 2012, CS Systemes d'Information, France
- *
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "grok_includes.h"
+#include "grk_includes.h"
 
 namespace grk {
+
+
+/**
+ * Updates the components characteristics of the image from the coding parameters.
+ *
+ * @param image_header	the image header to update.
+ * @param p_cp			the coding parameters from which to update the image.
+ */
+static void grk_update_image_comp_header_from_coding_params(grk_image *image_header,
+		const CodingParams *p_cp) {
+
+	//1. calculate canvas coordinates of image
+	uint32_t x0 = std::max<uint32_t>(p_cp->tx0, image_header->x0);
+	uint32_t y0 = std::max<uint32_t>(p_cp->ty0, image_header->y0);
+
+	/* validity of p_cp members used here checked in j2k_read_siz. Can't overflow. */
+	uint32_t x1 = p_cp->tx0 + (p_cp->t_grid_width - 1U) * p_cp->t_width;
+	uint32_t y1 = p_cp->ty0 + (p_cp->t_grid_height - 1U) * p_cp->t_height;
+
+	 /* use add saturated to prevent overflow */
+	x1 = std::min<uint32_t>(uint_adds(x1, p_cp->t_width), image_header->x1);
+	y1 = std::min<uint32_t>(uint_adds(y1, p_cp->t_height), image_header->y1);
+
+	// 2. convert from canvas to tile coordinates, taking into account
+	// resolution reduction
+	uint32_t reduce = p_cp->m_coding_params.m_dec.m_reduce;
+	for (uint32_t i = 0; i < image_header->numcomps; ++i) {
+		auto img_comp = image_header->comps + i;
+		uint32_t comp_x0 = ceildiv<uint32_t>(x0, img_comp->dx);
+		uint32_t comp_y0 = ceildiv<uint32_t>(y0, img_comp->dy);
+		uint32_t comp_x1 = ceildiv<uint32_t>(x1, img_comp->dx);
+		uint32_t comp_y1 = ceildiv<uint32_t>(y1, img_comp->dy);
+		uint32_t width = ceildivpow2<uint32_t>(comp_x1 - comp_x0,reduce);
+		uint32_t height = ceildivpow2<uint32_t>(comp_y1 - comp_y0,reduce);
+		img_comp->w = width;
+		img_comp->h = height;
+		img_comp->x0 = comp_x0;
+		img_comp->y0 = comp_y0;
+	}
+}
+
 
 bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 		uint16_t header_size){
@@ -79,7 +80,7 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 
 	/* minimum size == 39 - 3 (= minimum component parameter) */
 	if (header_size < 36) {
-		GROK_ERROR("Error with SIZ marker size");
+		GRK_ERROR("Error with SIZ marker size");
 		return false;
 	}
 
@@ -87,7 +88,7 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 	nb_comp = remaining_size / 3;
 	nb_comp_remain = remaining_size % 3;
 	if (nb_comp_remain != 0) {
-		GROK_ERROR("Error with SIZ marker size");
+		GRK_ERROR("Error with SIZ marker size");
 		return false;
 	}
 
@@ -104,7 +105,7 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 		uint16_t profile = tmp & GRK_PROFILE_MASK;
 		if ((profile > GRK_PROFILE_CINEMA_LTS)
 				&& !GRK_IS_BROADCAST(profile) && !GRK_IS_IMF(profile)) {
-			GROK_ERROR("Non-compliant Rsiz value 0x%x in SIZ marker", tmp);
+			GRK_ERROR("Non-compliant Rsiz value 0x%x in SIZ marker", tmp);
 			return false;
 		}
 	}
@@ -131,13 +132,13 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 	if (tmp <= max_num_components)
 		image->numcomps = (uint16_t) tmp;
 	else {
-		GROK_ERROR("Error in SIZ marker: number of component is illegal -> %u",
+		GRK_ERROR("Error in SIZ marker: number of component is illegal -> %u",
 				tmp);
 		return false;
 	}
 
 	if (image->numcomps != nb_comp) {
-		GROK_ERROR(
+		GRK_ERROR(
 				"Error in SIZ marker: number of component is not compatible with the remaining number of parameters ( %u vs %u)",
 				image->numcomps, nb_comp);
 		return false;
@@ -150,19 +151,19 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 		ss << "Error in SIZ marker: negative or zero image dimensions ("
 				<< (int64_t) image->x1 - image->x0 << " x "
 				<< (int64_t) image->y1 - image->y0 << ")" << std::endl;
-		GROK_ERROR("%s", ss.str().c_str());
+		GRK_ERROR("%s", ss.str().c_str());
 		return false;
 	}
 	/* testcase 2539.pdf.SIGFPE.706.1712 (also 3622.pdf.SIGFPE.706.2916 and 4008.pdf.SIGFPE.706.3345 and maybe more) */
 	if ((cp->t_width == 0U) || (cp->t_height == 0U)) {
-		GROK_ERROR("Error in SIZ marker: invalid tile size (%u, %u)",
+		GRK_ERROR("Error in SIZ marker: invalid tile size (%u, %u)",
 				cp->t_width, cp->t_height);
 		return false;
 	}
 
 	/* testcase issue427-illegal-tile-offset.jp2 */
 	if (cp->tx0 > image->x0 || cp->ty0 > image->y0) {
-		GROK_ERROR(
+		GRK_ERROR(
 				"Error in SIZ marker: tile origin (%u,%u) cannot lie in the region"
 						" to the right and bottom of image origin (%u,%u)",
 				cp->tx0, cp->ty0, image->x0, image->y0);
@@ -171,7 +172,7 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 	uint32_t tx1 = uint_adds(cp->tx0, cp->t_width); /* manage overflow */
 	uint32_t ty1 = uint_adds(cp->ty0, cp->t_height); /* manage overflow */
 	if (tx1 <= image->x0 || ty1 <= image->y0) {
-		GROK_ERROR("Error in SIZ marker: first tile (%u,%u,%u,%u) must overlap"
+		GRK_ERROR("Error in SIZ marker: first tile (%u,%u,%u,%u) must overlap"
 				" image (%u,%u,%u,%u)", cp->tx0, cp->ty0, tx1, ty1, image->x0,
 				image->y0, image->x1, image->y1);
 		return false;
@@ -179,7 +180,7 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 
 	uint64_t tileArea = (uint64_t) cp->t_width * cp->t_height;
 	if (tileArea > max_tile_area) {
-		GROK_ERROR(
+		GRK_ERROR(
 				"Error in SIZ marker: tile area = %llu greater than max tile area = %llu",
 				tileArea, max_tile_area);
 		return false;
@@ -191,7 +192,7 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 			sizeof(grk_image_comp));
 	if (image->comps == nullptr) {
 		image->numcomps = 0;
-		GROK_ERROR("Not enough memory to take in charge SIZ marker");
+		GRK_ERROR("Not enough memory to take in charge SIZ marker");
 		return false;
 	}
 
@@ -208,14 +209,14 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 		img_comp->dy = tmp; /* should be between 1 and 255 */
 		if (img_comp->dx < 1 || img_comp->dx > 255 || img_comp->dy < 1
 				|| img_comp->dy > 255) {
-			GROK_ERROR(
+			GRK_ERROR(
 					"Invalid values for comp = %u : dx=%u dy=%u\n (should be between 1 and 255 according to the JPEG2000 standard)",
 					i, img_comp->dx, img_comp->dy);
 			return false;
 		}
 
 		if (img_comp->prec == 0 || img_comp->prec > max_supported_precision) {
-			GROK_ERROR(
+			GRK_ERROR(
 					"Unsupported precision for comp = %u : prec=%u (Grok only supportes precision between 1 and %u)",
 					i, img_comp->prec, max_supported_precision);
 			return false;
@@ -229,13 +230,13 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 
 	/* Check that the number of tiles is valid */
 	if (cp->t_grid_width == 0 || cp->t_grid_height == 0) {
-		GROK_ERROR(
+		GRK_ERROR(
 				"Invalid grid of tiles: %u x %u. JPEG 2000 standard requires at least one tile in grid. ",
 				cp->t_grid_width, cp->t_grid_height);
 		return false;
 	}
 	if (cp->t_grid_width * cp->t_grid_height > max_num_tiles) {
-		GROK_ERROR(
+		GRK_ERROR(
 				"Invalid grid of tiles : %u x %u.  JPEG 2000 standard specifies maximum of %u tiles",
 				max_num_tiles, cp->t_grid_width, cp->t_grid_height);
 		return false;
@@ -243,7 +244,7 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 	nb_tiles = (uint16_t)(cp->t_grid_width * cp->t_grid_height);
 
 	/* Define the tiles which will be decoded */
-	if (decoder->m_discard_tiles) {
+	if (!codeStream->whole_tile_decoding) {
 		decoder->m_start_tile_x_index =
 				(decoder->m_start_tile_x_index
 						- cp->tx0) / cp->t_width;
@@ -268,19 +269,13 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 
 	/* memory allocations */
 	cp->tcps = new TileCodingParams[nb_tiles];
-	decoder->m_default_tcp->tccps =
-			(TileComponentCodingParams*) grk_calloc(image->numcomps, sizeof(TileComponentCodingParams));
-	if (decoder->m_default_tcp->tccps == nullptr) {
-		GROK_ERROR("Not enough memory to take in charge SIZ marker");
-		return false;
-	}
-
+	decoder->m_default_tcp->tccps = new  TileComponentCodingParams[image->numcomps];
 	decoder->m_default_tcp->m_mct_records =
 			(grk_mct_data*) grk_calloc(default_number_mct_records,
 					sizeof(grk_mct_data));
 
 	if (!decoder->m_default_tcp->m_mct_records) {
-		GROK_ERROR("Not enough memory to take in charge SIZ marker");
+		GRK_ERROR("Not enough memory to take in charge SIZ marker");
 		return false;
 	}
 	decoder->m_default_tcp->m_nb_max_mct_records =
@@ -292,7 +287,7 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 					sizeof(grk_simple_mcc_decorrelation_data));
 
 	if (!decoder->m_default_tcp->m_mcc_records) {
-		GROK_ERROR("Not enough memory to take in charge SIZ marker");
+		GRK_ERROR("Not enough memory to take in charge SIZ marker");
 		return false;
 	}
 	decoder->m_default_tcp->m_nb_max_mcc_records =
@@ -308,15 +303,10 @@ bool SIZMarker::read(CodeStream *codeStream, uint8_t *p_header_data,
 
 	for (i = 0; i < nb_tiles; ++i) {
 		auto current_tile_param = cp->tcps + i;
-		current_tile_param->tccps = (TileComponentCodingParams*) grk_calloc(image->numcomps,
-				sizeof(TileComponentCodingParams));
-		if (current_tile_param->tccps == nullptr) {
-			GROK_ERROR("Not enough memory to take in charge SIZ marker");
-			return false;
-		}
+		current_tile_param->tccps = new TileComponentCodingParams[image->numcomps];
 	}
 	decoder->m_state = J2K_DEC_STATE_MH;
-	grk_image_comp_header_update(image, cp);
+	grk_update_image_comp_header_from_coding_params(image, cp);
 
 	return true;
 
@@ -376,7 +366,7 @@ bool SIZMarker::write(CodeStream *codeStream, BufferedStream *stream){
 		/* TODO here with MCT ? */
 		uint8_t bpcc = (uint8_t) (comp->prec - 1);
 		if (comp->sgnd)
-			bpcc += (uint8_t)(1 << 7);
+			bpcc = (uint8_t)(bpcc + (1 << 7));
 		if (!stream->write_byte(bpcc))
 			return false;
 		/* XRsiz_i */

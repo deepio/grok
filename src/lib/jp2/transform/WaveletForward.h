@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "grok_includes.h"
+#include "grk_includes.h"
 
 namespace grk {
 
@@ -45,7 +45,7 @@ template <typename DWT> bool WaveletForward<DWT>::run(TileComponent *tilec){
 			tilec->numresolutions) * sizeof(int32_t);
 	/* overflow check */
 	if (l_data_size > SIZE_MAX) {
-		GROK_ERROR("Wavelet compress: overflow");
+		GRK_ERROR("Wavelet compress: overflow");
 		return false;
 	}
 	if (!l_data_size)

@@ -14,49 +14,17 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2008, 2011-2012, Centre National d'Etudes Spatiales (CNES), FR
- * Copyright (c) 2012, CS Systemes d'Information, France
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
+
 
 #pragma once
 namespace grk {
 
 /**
- @file jp2.h
+ @file FileFormat.h
  @brief The JPEG 2000 file format Reader/Writer (JP2)
 
  */
@@ -156,18 +124,65 @@ struct grk_jp2_uuid: public grk_jp2_buffer {
 };
 
 struct FileFormat;
-typedef bool (*jp2_procedure)(FileFormat *fileFormat, BufferedStream*);
+typedef bool (*jp2_procedure)(FileFormat *fileFormat);
 
 /**
  JPEG 2000 file format reader/writer
  */
-struct FileFormat {
-	FileFormat(bool isDecoder);
+struct FileFormat : public ICodeStream {
+	FileFormat(bool isDecoder, BufferedStream *stream);
 	~FileFormat();
 
-	bool decompress_tile(BufferedStream *stream, grk_image *p_image,
-			uint16_t tile_index);
 
+	/** Main header reading function handler */
+   bool read_header(grk_header_info  *header_info, grk_image **p_image);
+
+	/** Setup decoder function handler */
+  void init_decompress(grk_dparameters  *p_param);
+
+	/**
+	 * Sets the given area to be decoded. This function should be called right after grk_read_header
+	 * and before any tile header reading.
+	 *
+	 * @param	p_image     image
+	 * @param	start_x		the left position of the rectangle to decompress (in image coordinates).
+	 * @param	start_y		the up position of the rectangle to decompress (in image coordinates).
+	 * @param	end_x		the right position of the rectangle to decompress (in image coordinates).
+	 * @param	end_y		the bottom position of the rectangle to decompress (in image coordinates).
+
+	 *
+	 * @return	true			if the area could be set.
+	 */
+	bool set_decompress_area(grk_image *p_image,
+						uint32_t start_x,
+						uint32_t start_y,
+						uint32_t end_x,
+						uint32_t end_y);
+
+
+	/** Decoding function */
+   bool decompress( grk_plugin_tile *tile,	grk_image *p_image);
+
+	/** Reading function used after code stream if necessary */
+   bool end_decompress(void);
+
+   bool init_compress(grk_cparameters  *p_param,grk_image *p_image);
+
+   bool start_compress(void);
+
+   bool compress(grk_plugin_tile* tile);
+
+   bool compress_tile(uint16_t tile_index,	uint8_t *p_data, uint64_t data_size);
+
+   bool end_compress(void);
+
+	bool decompress_tile(grk_image *p_image,uint16_t tile_index);
+
+   void dump(int32_t flag, FILE *out_stream);
+
+   grk_codestream_info_v2* get_cstr_info(void);
+
+   grk_codestream_index* get_cstr_index(void);
 
 
 	/** handle to the J2K codec  */
@@ -211,6 +226,8 @@ struct FileFormat {
 	grk_jp2_buffer xml;
 	grk_jp2_uuid uuids[JP2_MAX_NUM_UUIDS];
 	uint32_t numUuids;
+
+	BufferedStream *m_stream;
 };
 
 /**
@@ -240,146 +257,6 @@ struct grk_jp2_img_header_writer_handler {
 /** @name Exported functions */
 /*@{*/
 /* ----------------------------------------------------------------------- */
-
-
-/**
- Destroy a JP2 decompressor handle
- @param fileFormat JP2 decompressor handle to destroy
- */
-void jp2_destroy(FileFormat *fileFormat);
-
-
-/**
- * Set up compress parameters using the current image and using user parameters.
- * Coding parameters are returned in fileFormat->j2k->cp.
- *
- * @param fileFormat JP2 compressor handle
- * @param parameters compression parameters
- * @param image input filled image
-
- * @return true if successful, false otherwise
- */
-bool jp2_init_compress(FileFormat *fileFormat,  grk_cparameters  *parameters,
-		grk_image *image);
-
-/**
- * Starts a compression scheme, i.e. validates the codec parameters, writes the header.
- * @param  fileFormat    	 JPEG 2000 file codec.
- * @param  stream    the stream object.
- * @return true if the codec is valid.
- */
-bool jp2_start_compress(FileFormat *fileFormat, BufferedStream *stream);
-
-/**
- Encode an image into a JPEG 2000 file stream
-
- @param fileFormat       JP2 compressor handle
- @param tile	  plugin tile
- @param stream    Output buffer stream
-
- @return true if successful, returns false otherwise
- */
-bool jp2_compress(FileFormat *fileFormat, grk_plugin_tile *tile, BufferedStream *stream);
-
-
-/**
- * Compress tile
- *
- * @param  fileFormat    			JPEG 2000 file format
- * @param  tileProcessor			tile processor
- * @param tile_index  				tile index
- * @param p_data        			uncompressed data
- * @param uncompressed_data_size   	uncompressed data size
- * @param  stream      buffered stream.
-
- */
-bool jp2_compress_tile(FileFormat *fileFormat, TileProcessor *tileProcessor,
-		uint16_t tile_index, uint8_t *p_data,
-		uint64_t uncompressed_data_size, BufferedStream *stream);
-
-/**
- * Ends the compression procedures and possibly add data to be read after the
- * code stream.
- */
-bool jp2_end_compress(FileFormat *fileFormat, BufferedStream *stream);
-
-/* ----------------------------------------------------------------------- */
-
-/**
- Set up the decompress parameters using user parameters.
- Decoding parameters are returned in fileFormat->j2k->cp.
-
- @param fileFormat JP2 decompressor handle
- @param parameters decompression parameters
- */
-void jp2_init_decompress(void *fileFormat,  grk_dparameters  *parameters);
-
-/**
- * Decompress an image from a JPEG 2000 file stream
- *
- * @param fileFormat JP2 decompressor handle
- * @param tile	  plugin tile
- * @param stream  stream
- * @param p_image image
- *
- * @return a decoded image if successful, otherwise nullptr
- */
-bool jp2_decompress(FileFormat *fileFormat, grk_plugin_tile *tile, BufferedStream *stream,
-		grk_image *p_image);
-
-/**
- * Ends the decompression procedures and possibly add data to be read after the
- * code stream.
- */
-bool jp2_end_decompress(FileFormat *fileFormat, BufferedStream *stream);
-
-/**
- * Read a JPEG 2000 file header.
- * @param stream 		stream to read data from.
- * @param fileFormat    JPEG 2000 file format
- * @param header_info   header structure to store header info
- * @param p_image   	input image
- *
- * @return true if the box is valid.
- */
-bool jp2_read_header(BufferedStream *stream, FileFormat *fileFormat,
-		 grk_header_info  *header_info, grk_image **p_image);
-
-/**
- * Reads a tile header.
- * @param  fileFormat   			JPEG 2000 file format
- * @param  tile_index   			tile index
- * @param  can_decode_tile_data 	set to true if ready to decode tile data
- * @param  stream      				buffered stream.
- *
- * @return true if successful
- 
- */
-bool jp2_read_tile_header(FileFormat *fileFormat, uint16_t *tile_index,
-		bool *can_decode_tile_data, BufferedStream *stream);
-
-
-/**
- * Sets the given area to be decompressed. This function should be called
- * right after grk_read_header and before any tile header reading.
- *
- * @param  fileFormat     JPEG 2000 code stream
- * @param  image     output image
- * @param  start_x   the left position of the rectangle to decompress (in image coordinates).
- * @param  start_y   the up position of the rectangle to decompress (in image coordinates).
- * @param  end_x     the right position of the rectangle to decompress (in image coordinates).
- * @param  end_y     the bottom position of the rectangle to decompress (in image coordinates).
- *
- * @return  true      if the area could be set.
- */
-bool jp2_set_decompress_area(FileFormat *fileFormat, grk_image *image, uint32_t start_x,
-		uint32_t start_y, uint32_t end_x, uint32_t end_y);
-
-/**
- *
- */
-bool jp2_decompress_tile(FileFormat *fileFormat, BufferedStream *stream, grk_image *p_image, uint16_t tile_index);
-
 
 /*@}*/
 

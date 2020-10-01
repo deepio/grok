@@ -46,7 +46,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "grok_includes.h"
+#include "grk_includes.h"
 #include "spdlog/spdlog.h"
 
 #ifdef _WIN32
@@ -194,7 +194,7 @@ int main(int argc, char** argv)
 	if (threadScalingArg.isSet())
 		begin = 1;
 
-	CodeStream codeStream(!forwardArg.isSet());
+	CodeStream codeStream(!forwardArg.isSet(),nullptr);
 	codeStream.m_input_image = &image;
 
    for (size_t k = begin; k <= end; ++k) {
@@ -226,7 +226,7 @@ int main(int argc, char** argv)
 		output_image_comp.stride = size;
 		output_image_comp.h = size;
 
-	    std::unique_ptr<TileProcessor> tileProcessor(new TileProcessor(&codeStream));
+	    std::unique_ptr<TileProcessor> tileProcessor(new TileProcessor(&codeStream,nullptr));
 	    grk_initialize(nullptr,k);
 	    init_tilec(&tilec, offset_x, offset_y,
 				   offset_x + size, offset_y + size,

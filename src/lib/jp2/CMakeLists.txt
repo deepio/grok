@@ -45,7 +45,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/util
   ${CMAKE_CURRENT_SOURCE_DIR}/codestream
   ${CMAKE_CURRENT_SOURCE_DIR}/codestream/markers
-  ${CMAKE_CURRENT_SOURCE_DIR}/mct
+  ${CMAKE_CURRENT_SOURCE_DIR}/point_transform
   ${CMAKE_CURRENT_SOURCE_DIR}/t2
 )
 
@@ -63,9 +63,11 @@ set(GROK_LIBRARY_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/util/IBufferedStream.h
   ${CMAKE_CURRENT_SOURCE_DIR}/util/logger.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/util/logger.h  
+  ${CMAKE_CURRENT_SOURCE_DIR}/util/GrkMappedFile.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/util/GrkMappedFile.h
   ${CMAKE_CURRENT_SOURCE_DIR}/util/mem_stream.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/util/mem_stream.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/util/grok_intmath.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/util/grk_intmath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/util/MemManager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/util/MemManager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/util/util.cpp
@@ -74,7 +76,7 @@ set(GROK_LIBRARY_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/util/CPUArch.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/util/ChunkBuffer.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/util/ChunkBuffer.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/util/grok_exceptions.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/util/grk_exceptions.h
   ${CMAKE_CURRENT_SOURCE_DIR}/util/testing.h
   
   ${CMAKE_CURRENT_SOURCE_DIR}/plugin/minpf_dynamic_library.cpp
@@ -119,11 +121,8 @@ set(GROK_LIBRARY_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/codestream/markers/markers.h
   ${CMAKE_CURRENT_SOURCE_DIR}/codestream/markers/markers.cpp
 
-    
-  ${CMAKE_CURRENT_SOURCE_DIR}/mct/invert.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/mct/invert.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/mct/mct.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/mct/mct.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/point_transform/mct.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/point_transform/mct.h
 
   ${CMAKE_CURRENT_SOURCE_DIR}/t2/T2.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/t2/T2.h  
@@ -136,9 +135,6 @@ set(GROK_LIBRARY_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/t2/RateInfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/t2/RateInfo.cpp
 
-  
-  ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/image.h
   ${CMAKE_CURRENT_SOURCE_DIR}/grok.h
   ${CMAKE_CURRENT_SOURCE_DIR}/grok.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/grok.h
@@ -147,7 +143,7 @@ set(GROK_LIBRARY_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/TileComponent.h
   ${CMAKE_CURRENT_SOURCE_DIR}/TileProcessor.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/TileProcessor.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/grok_includes.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/grk_includes.h
 
   ${CMAKE_CURRENT_SOURCE_DIR}/transform/Wavelet.h
   ${CMAKE_CURRENT_SOURCE_DIR}/transform/Wavelet.cpp
@@ -199,11 +195,6 @@ set(GROK_LIBRARY_SRCS
 )
 
 add_definitions(-DSPDLOG_COMPILED_LIB)
-
-option(GRK_DISABLE_TPSOT_FIX "Disable TPsot==TNsot fix. See https://github.com/uclouvain/openjpeg/issues/254." OFF)
-if(GRK_DISABLE_TPSOT_FIX)
-  add_definitions(-DGRK_DISABLE_TPSOT_FIX)
-endif()
 
 # Build the library
 if (BUILD_PLUGIN_LOADER)

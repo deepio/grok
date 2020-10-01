@@ -14,51 +14,12 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2006-2007, Parvatha Elangovan
- * Copyright (c) 2008, Jerome Fimes, Communications & Systemes <jerome.fimes@c-s.fr>
- * Copyright (c) 2011-2012, Centre National d'Etudes Spatiales (CNES), France
- * Copyright (c) 2012, CS Systemes d'Information, France
- *
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "grok_includes.h"
+#include "grk_includes.h"
 
 namespace grk {
 
@@ -74,7 +35,7 @@ void CodingParams::destroy() {
 		tcps = nullptr;
 	}
 	for (uint32_t i = 0; i < num_comments; ++i) {
-		grk_buffer_delete((uint8_t*) comment[i]);
+        delete[] ((uint8_t*) comment[i]);
 		comment[i] = nullptr;
 	}
 	num_comments = 0;
@@ -84,15 +45,37 @@ void CodingParams::destroy() {
 }
 
 TileCodingParams::TileCodingParams() :
-		csty(0), prg(GRK_PROG_UNKNOWN), numlayers(0), num_layers_to_decode(0), mct(
-				0), numpocs(0), ppt_markers_count(0), ppt_markers(nullptr), ppt_data(
-				nullptr), ppt_buffer(nullptr), ppt_data_size(0), ppt_len(0), main_qcd_qntsty(
-				0), main_qcd_numStepSizes(0), tccps(nullptr), m_tile_part_index(
-				-1), m_nb_tile_parts(0), m_tile_data(nullptr), mct_norms(
-				nullptr), m_mct_decoding_matrix(nullptr), m_mct_coding_matrix(
-				nullptr), m_mct_records(nullptr), m_nb_mct_records(0), m_nb_max_mct_records(
-				0), m_mcc_records(nullptr), m_nb_mcc_records(0), m_nb_max_mcc_records(
-				0), cod(false), ppt(false), POC(false), isHT(false) {
+								csty(0),
+								prg(GRK_PROG_UNKNOWN),
+								numlayers(0),
+								num_layers_to_decode(0),
+								mct(0),
+								numpocs(0),
+								ppt_markers_count(0),
+								ppt_markers(nullptr),
+								ppt_data(nullptr),
+								ppt_buffer(nullptr),
+								ppt_data_size(0),
+								ppt_len(0),
+								main_qcd_qntsty(0),
+								main_qcd_numStepSizes(0),
+								tccps(nullptr),
+								m_tile_part_index(-1),
+								m_nb_tile_parts(0),
+								m_tile_data(nullptr),
+								mct_norms(nullptr),
+								m_mct_decoding_matrix(nullptr),
+								m_mct_coding_matrix(nullptr),
+								m_mct_records(nullptr),
+								m_nb_mct_records(0),
+								m_nb_max_mct_records(0),
+								m_mcc_records(nullptr),
+								m_nb_mcc_records(0),
+								m_nb_max_mcc_records(0),
+								cod(false),
+								ppt(false),
+								POC(false),
+								isHT(false) {
 	for (auto i = 0; i < 100; ++i)
 		rates[i] = 0.0;
 	for (auto i = 0; i < 100; ++i)
@@ -114,9 +97,9 @@ void TileCodingParams::destroy() {
 		ppt_markers = nullptr;
 	}
 
-	grk_free(ppt_buffer);
+	delete[] ppt_buffer;
 	ppt_buffer = nullptr;
-	grk_free(tccps);
+	delete[] tccps;
 	tccps = nullptr;
 	grk_free(m_mct_coding_matrix);
 	m_mct_coding_matrix = nullptr;
@@ -145,8 +128,32 @@ void TileCodingParams::destroy() {
 	m_tile_data = nullptr;
 }
 
-bool DecoderState::findNextTile(BufferedStream *stream){
-	ready_to_decode_tile_part_data = false;
+
+
+TileComponentCodingParams::TileComponentCodingParams() : csty(0),
+														numresolutions(0),
+														cblkw(0),
+														cblkh(0),
+														cblk_sty(0),
+														qmfbid(0),
+														quantizationMarkerSet(false),
+														fromQCC(false),
+														fromTileHeader(false),
+														qntsty(0),
+														numStepSizes(0),
+														numgbits(0),
+														roishift(0),
+														m_dc_level_shift(0)
+{
+	for (uint32_t i = 0; i < GRK_J2K_MAXRLVLS; ++i){
+		prcw[i] = 0;
+		prch[i] = 0;
+	}
+}
+
+bool DecoderState::findNextTile(CodeStream *codeStream){
+	auto stream = codeStream->getStream();
+	last_tile_part_was_read = false;
 	m_state &= (uint32_t) (~J2K_DEC_STATE_DATA);
 
 	// if there is no EOC marker and there is also no data left, then simply return true
@@ -157,21 +164,13 @@ bool DecoderState::findNextTile(BufferedStream *stream){
 	// if EOC marker has not been read yet, then try to read the next marker
 	// (should be EOC or SOT)
 	if (m_state != J2K_DEC_STATE_EOC) {
-
-		uint8_t data[2];
-		// not enough data for another marker
-		if (stream->read(data, 2) != 2) {
-			GROK_WARN(
+		if (!codeStream->read_marker_skip_unknown()) {
+			GRK_WARN(
 					"findNextTile: Not enough data to read another marker.\n"
 							"Tile may be truncated.");
 			return true;
 		}
-
-		uint32_t current_marker = 0;
-		// read marker
-		grk_read<uint32_t>(data, &current_marker, 2);
-
-		switch (current_marker) {
+		switch (codeStream->m_curr_marker) {
 		// we found the EOC marker - set state accordingly and return true;
 		// we can ignore all data after EOC
 		case J2K_MS_EOC:
@@ -187,12 +186,12 @@ bool DecoderState::findNextTile(BufferedStream *stream){
 			// no bytes left - file ends without EOC marker
 			if (bytesLeft == 0) {
 				m_state = J2K_DEC_STATE_NO_EOC;
-				GROK_WARN("findNextTile: stream does not end with EOC");
+				GRK_WARN("findNextTile: stream does not end with EOC");
 				return true;
 			}
-			GROK_WARN("findNextTile: expected EOC or SOT "
-					"but found marker 0x%x:  ", current_marker);
-			GROK_WARN("ignoring %d bytes remaining in the stream.", bytesLeft+2);
+			GRK_WARN("findNextTile: expected EOC or SOT "
+					"but found marker 0x%x.\nIgnoring %d bytes "
+					"remaining in the stream.", codeStream->m_curr_marker, bytesLeft+2);
 			throw DecodeUnknownMarkerAtEndOfTileException();
 		}
 			break;

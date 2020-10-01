@@ -1,13 +1,13 @@
 # NON-REGRESSION TESTS ON THIS DATASET LOCATED AT
-# ${GROK_DATA_ROOT}/input/nonregression
+# ${GRK_DATA_ROOT}/input/nonregression
 cmake_minimum_required(VERSION 3.16.0)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Temporary)
 set(TEMP ${CMAKE_CURRENT_BINARY_DIR}/Temporary)
-set(BASELINE_NR ${GROK_DATA_ROOT}/baseline/nonregression)
-set(INPUT_NR ${GROK_DATA_ROOT}/input/nonregression)
+set(BASELINE_NR ${GRK_DATA_ROOT}/baseline/nonregression)
+set(INPUT_NR ${GRK_DATA_ROOT}/input/nonregression)
 set(INPUT_NR_PATH ${INPUT_NR})
 set(TEMP_PATH ${TEMP})
-set(INPUT_CONF_PATH ${GROK_DATA_ROOT}/input/conformance)
+set(INPUT_CONF_PATH ${GRK_DATA_ROOT}/input/conformance)
 # need kdu_expand if available
 find_package(KAKADU)
 # need jpylyzer if available
@@ -67,6 +67,7 @@ set(BLACKLIST_JPEG2000
     mem-b2ace68c-1381.jp2
     1851.pdf.SIGSEGV.ce9.948.jp2
     1888.pdf.asan.35.988.jp2
+    2977.pdf.asan.67.2198.jp2
     issue362-2863.jp2 #kdu_jp2info ok
     issue362-2866.jp2
     issue362-2894.jp2
@@ -122,7 +123,7 @@ endforeach()
 
 #########################################################################
 # GENERATION OF THE TEST SUITE (DECODE AND ENCODE)
-# Read one and more input file(s) (located in ${GROK_DATA_ROOT}/input/nonregression)
+# Read one and more input file(s) (located in ${GRK_DATA_ROOT}/input/nonregression)
 # to know which files processed and with which options.
 
 # Configure the test suite file:

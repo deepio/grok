@@ -14,47 +14,12 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2008, 2011-2012, Centre National d'Etudes Spatiales (CNES), FR
- * Copyright (c) 2012, CS Systemes d'Information, France
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "grok_includes.h"
+
+#include "grk_includes.h"
 #include "testing.h"
 #include <memory>
 
@@ -68,7 +33,7 @@ T2Encode::T2Encode(TileProcessor *tileProc) :
 }
 
 
-bool T2Encode::encode_packets(uint16_t tile_no, uint32_t max_layers,
+bool T2Encode::encode_packets(uint16_t tile_no, uint16_t max_layers,
 		BufferedStream *stream, uint32_t *p_data_written,
 		uint32_t tp_num, uint32_t tp_pos,
 		uint32_t pino) {
@@ -87,7 +52,7 @@ bool T2Encode::encode_packets(uint16_t tile_no, uint32_t max_layers,
 	auto current_pi = &pi[pino];
 	if (current_pi->poc.prg == GRK_PROG_UNKNOWN) {
 		pi_destroy(pi, nb_pocs);
-		GROK_ERROR("encode_packets: Unknown progression order");
+		GRK_ERROR("encode_packets: Unknown progression order");
 		return false;
 	}
 	while (pi_next(current_pi)) {
@@ -107,7 +72,7 @@ bool T2Encode::encode_packets(uint16_t tile_no, uint32_t max_layers,
 	return true;
 }
 
-bool T2Encode::encode_packets_simulate(uint16_t tile_no, uint32_t max_layers,
+bool T2Encode::encode_packets_simulate(uint16_t tile_no, uint16_t max_layers,
 		uint32_t *all_packets_len, uint32_t max_len, uint32_t tp_pos,
 		PacketLengthMarkers *markers) {
 
@@ -128,7 +93,7 @@ bool T2Encode::encode_packets_simulate(uint16_t tile_no, uint32_t max_layers,
 
 	tileProcessor->m_packetTracker.clear();
 #ifdef DEBUG_ENCODE_PACKETS
-    GROK_INFO("simulate encode packets for layers below layno %u", max_layers);
+    GRK_INFO("simulate encode packets for layers below layno %u", max_layers);
 #endif
 	for (uint32_t compno = 0; compno < max_comp; ++compno) {
 		uint64_t comp_len = 0;
@@ -139,7 +104,7 @@ bool T2Encode::encode_packets_simulate(uint16_t tile_no, uint32_t max_layers,
 
 			if (current_pi->poc.prg == GRK_PROG_UNKNOWN) {
 				pi_destroy(pi, nb_pocs);
-				GROK_ERROR(
+				GRK_ERROR(
 						"decode_packets_simulate: Unknown progression order");
 				return false;
 			}
@@ -190,7 +155,7 @@ bool T2Encode::encode_packet(TileCodingParams *tcp, PacketIter *pi,
 	tileProcessor->m_packetTracker.packet_encoded(compno, resno, precno, layno);
 
 #ifdef DEBUG_ENCODE_PACKETS
-    GROK_INFO("encode packet compono=%u, resno=%u, precno=%u, layno=%u",
+    GRK_INFO("encode packet compono=%u, resno=%u, precno=%u, layno=%u",
              compno, resno, precno, layno);
 #endif
 
@@ -232,7 +197,7 @@ bool T2Encode::encode_packet(TileCodingParams *tcp, PacketIter *pi,
 				cblk->numPassesInPacket = 0;
 				assert(band->numbps >= cblk->numbps);
 				if (band->numbps < cblk->numbps) {
-					GROK_WARN(
+					GRK_WARN(
 							"Code block %u bps greater than band bps. Skipping.",
 							cblkno);
 				} else {
@@ -363,7 +328,7 @@ bool T2Encode::encode_packet(TileCodingParams *tcp, PacketIter *pi,
 	}
 
 	if (!bio->flush()) {
-		GROK_ERROR("encode_packet: Bit IO flush failed while encoding packet");
+		GRK_ERROR("encode_packet: Bit IO flush failed while encoding packet");
 		return false;
 	}
 
@@ -410,7 +375,7 @@ bool T2Encode::encode_packet(TileCodingParams *tcp, PacketIter *pi,
 		auto src_buf = std::unique_ptr<ChunkBuffer>(new ChunkBuffer());
 		seg_buf_push_back(src_buf.get(), dest, *packet_bytes_written);
 
-		bool rc = true;
+		bool ret = true;
 		bool read_data;
 		if (!T2Encode::read_packet_header(p_t2,
 			roundRes,
@@ -419,7 +384,7 @@ bool T2Encode::encode_packet(TileCodingParams *tcp, PacketIter *pi,
 			&read_data,
 			src_buf.get(),
 			&nb_bytes_read)) {
-			rc = false;
+			ret = false;
 		}
 		if (rc) {
 
@@ -432,9 +397,9 @@ bool T2Encode::encode_packet(TileCodingParams *tcp, PacketIter *pi,
 				auto roundTripBand = roundRes->bands + bandno;
 				if (!band->precincts)
 					continue;
-				for (uint64_t precno = 0; precno < band->numPrecincts; ++precno) {
-					auto prec = band->precincts + precno;
-					auto roundTripPrec = roundTripBand->precincts + precno;
+				for (uint64_t pno = 0; pno < band->numPrecincts; ++pno) {
+					auto prec = band->precincts + pno;
+					auto roundTripPrec = roundTripBand->precincts + pno;
 					for (uint64_t cblkno = 0; cblkno < (uint64_t)prec->cw * prec->ch; ++cblkno) {
 						auto originalCblk = prec->enc + cblkno;
 						grk_layer *layer = originalCblk->layers + layno;
@@ -526,9 +491,9 @@ bool T2Encode::encode_packet(TileCodingParams *tcp, PacketIter *pi,
 						auto roundTripBand = roundRes->bands + bandno;
 						if (!band->precincts)
 							continue;
-						for (uint64_t precno = 0; precno < band->numPrecincts; ++precno) {
-							auto prec = band->precincts + precno;
-							auto roundTripPrec = roundTripBand->precincts + precno;
+						for (uint64_t pno = 0; pno < band->numPrecincts; ++pno) {
+							auto prec = band->precincts + pno;
+							auto roundTripPrec = roundTripBand->precincts + pno;
 							for (uint32_t cblkno = 0; cblkno < (uint64_t)prec->cw * prec->ch; ++cblkno) {
 								auto originalCblk = prec->enc + cblkno;
 								grk_layer *layer = originalCblk->layers + layno;
@@ -577,8 +542,9 @@ bool T2Encode::encode_packet(TileCodingParams *tcp, PacketIter *pi,
 			}
 		}
 		else {
-			GROK_ERROR("encode_packet: decompress packet failed");
+			GRK_ERROR("encode_packet: decompress packet failed");
 		}
+		return ret;
 #endif
 	return true;
 }
@@ -603,7 +569,7 @@ bool T2Encode::encode_packet_simulate(TileCodingParams *tcp, PacketIter *pi,
 	tileProcessor->m_packetTracker.packet_encoded(compno, resno, precno, layno);
 
 #ifdef DEBUG_ENCODE_PACKETS
-    GROK_INFO("simulate encode packet compono=%u, resno=%u, precno=%u, layno=%u",
+    GRK_INFO("simulate encode packet compono=%u, resno=%u, precno=%u, layno=%u",
              compno, resno, precno, layno);
 #endif
 
@@ -629,7 +595,7 @@ bool T2Encode::encode_packet_simulate(TileCodingParams *tcp, PacketIter *pi,
 				auto cblk = prc->enc + cblkno;
 				cblk->numPassesInPacket = 0;
 				if (band->numbps < cblk->numbps) {
-					GROK_WARN(
+					GRK_WARN(
 							"Code block %u bps greater than band bps. Skipping.",
 							cblkno);
 				} else {

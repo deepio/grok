@@ -17,7 +17,7 @@
 #pragma once
 
 #include "util.h"
-#include "grok_intmath.h"
+#include "grk_intmath.h"
 #include "TagTree.h"
 #include "TileProcessor.h"
 #include <stdexcept>
@@ -92,8 +92,10 @@ template<typename T> struct TileComponentBuffer {
 			m_bounds.rectceildivpow2(num_resolutions - reduced_num_resolutions);
 
 			/* clip region dimensions against tile */
-			reduced_dim.clip(m_bounds, &m_bounds);
-			unreduced_dim.clip(m_unreduced_bounds, &m_unreduced_bounds);
+			m_bounds.intersection(reduced_dim);
+			assert(m_bounds.is_valid());
+			m_unreduced_bounds.intersection(unreduced_dim);
+			assert(m_unreduced_bounds.is_valid());
 		}
 
 		/* fill resolutions vector */

@@ -14,48 +14,11 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2008, 2011-2012, Centre National d'Etudes Spatiales (CNES), FR
- * Copyright (c) 2012, CS Systemes d'Information, France
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
-
-#include "grok_includes.h"
+#include "grk_includes.h"
 namespace grk {
 
 template<typename TYPE> void grk_write(uint8_t *p_buffer, TYPE value,
@@ -152,7 +115,7 @@ size_t BufferedStream::read(uint8_t *p_buffer, size_t p_size) {
 				m_user_data);
 		//sanity check on external read function
 		if (m_buffered_bytes > m_buf->len) {
-			GROK_ERROR(
+			GRK_ERROR(
 					"Buffered stream: read length greater than buffer length");
 			return 0;
 		}
@@ -318,7 +281,7 @@ bool BufferedStream::flush() {
 
 		if (current_write_nb_bytes != m_buffered_bytes) {
 			m_status |= GROK_STREAM_STATUS_ERROR;
-			GROK_ERROR("Error on writing stream.");
+			GRK_ERROR("Error on writing stream.");
 			return false;
 		}
 		m_buf->incr_offset((ptrdiff_t) current_write_nb_bytes);
@@ -368,7 +331,6 @@ uint64_t BufferedStream::get_number_byte_left(void) {
 			(uint64_t) (m_user_data_length - m_stream_offset) : 0;
 }
 bool BufferedStream::skip(int64_t p_size) {
-	assert(p_size >= 0);
 	if (m_status & GROK_STREAM_STATUS_INPUT)
 		return read_skip(p_size);
 	else
@@ -449,35 +411,29 @@ bool BufferedStream::isMemStream() {
 }
 
 }
-grk_stream* GRK_CALLCONV grk_stream_create(size_t buffer_size,
+grk_stream* grk_stream_create(size_t buffer_size,
 		bool is_input) {
 	return (grk_stream*) (new grk::BufferedStream(nullptr, buffer_size,
 			is_input));
 }
-void GRK_CALLCONV grk_stream_destroy(grk_stream *stream) {
+void grk_stream_destroy(grk_stream *stream) {
 	delete (grk::BufferedStream*) (stream);
 }
-void GRK_CALLCONV grk_stream_set_read_function(grk_stream *stream,
+void grk_stream_set_read_function(grk_stream *stream,
 		grk_stream_read_fn p_function) {
 	auto streamImpl = (grk::BufferedStream*) stream;
 	if ((!streamImpl) || (!(streamImpl->m_status & GROK_STREAM_STATUS_INPUT)))
 		return;
 	streamImpl->m_read_fn = p_function;
 }
-void GRK_CALLCONV grk_stream_set_zero_copy_read_function(grk_stream *stream,
-		grk_stream_zero_copy_read_fn p_function) {
-	auto streamImpl = (grk::BufferedStream*) stream;
-	if ((!streamImpl) || (!(streamImpl->m_status & GROK_STREAM_STATUS_INPUT)))
-		return;
-	streamImpl->m_zero_copy_read_fn = p_function;
-}
-void GRK_CALLCONV grk_stream_set_seek_function(grk_stream *stream,
+
+void grk_stream_set_seek_function(grk_stream *stream,
 		grk_stream_seek_fn p_function) {
 	auto streamImpl = (grk::BufferedStream*) stream;
 	if (streamImpl)
 		streamImpl->m_seek_fn = p_function;
 }
-void GRK_CALLCONV grk_stream_set_write_function(grk_stream *stream,
+void grk_stream_set_write_function(grk_stream *stream,
 		grk_stream_write_fn p_function) {
 	auto streamImpl = (grk::BufferedStream*) stream;
 	if ((!streamImpl) || (!(streamImpl->m_status & GROK_STREAM_STATUS_OUTPUT)))
@@ -486,7 +442,7 @@ void GRK_CALLCONV grk_stream_set_write_function(grk_stream *stream,
 	streamImpl->m_write_fn = p_function;
 }
 
-void GRK_CALLCONV grk_stream_set_user_data(grk_stream *stream, void *p_data,
+void grk_stream_set_user_data(grk_stream *stream, void *p_data,
 		grk_stream_free_user_data_fn p_function) {
 	auto streamImpl = (grk::BufferedStream*) stream;
 	if (!streamImpl)
@@ -494,7 +450,7 @@ void GRK_CALLCONV grk_stream_set_user_data(grk_stream *stream, void *p_data,
 	streamImpl->m_user_data = p_data;
 	streamImpl->m_free_user_data_fn = p_function;
 }
-void GRK_CALLCONV grk_stream_set_user_data_length(grk_stream *stream,
+void grk_stream_set_user_data_length(grk_stream *stream,
 		uint64_t data_length) {
 	auto streamImpl = (grk::BufferedStream*) stream;
 	if (streamImpl)

@@ -14,63 +14,12 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
-#ifdef _WIN32
-#include <Windows.h>
-#include "windirent.h"
-#define strcasecmp _stricmp
-#define strncasecmp _strnicmp
-#include <io.h>
-#include <fcntl.h>
-#else
-#include <strings.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-#include <sys/times.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <dirent.h>
-#endif /* _WIN32 */
+
+
 #include "common.h"
 #include <cstdio>
 #include <cstdlib>
@@ -165,7 +114,7 @@ bool supportedStdioFormat(GRK_SUPPORTED_FILE_FMT format) {
 	return false;
 }
 
-bool grok_set_binary_mode(FILE *file) {
+bool grk_set_binary_mode(FILE *file) {
 #ifdef _WIN32
 	return (_setmode(_fileno(file), _O_BINARY) != -1);
 #else
@@ -177,12 +126,12 @@ bool grok_set_binary_mode(FILE *file) {
 bool grk_open_for_output(FILE **fdest, const char* outfile, bool writeToStdout){
 	assert(fdest);
 	if (writeToStdout) {
-		if (!grk::grok_set_binary_mode(stdout))
+		if (!grk::grk_set_binary_mode(stdout))
 			return false;
 		*fdest = stdout;
 	} else {
 		*fdest = fopen(outfile, "wb");
-		if (!fdest) {
+		if (!*fdest) {
 			spdlog::error("failed to open {} for writing", outfile);
 			return false;
 		}
@@ -220,18 +169,18 @@ bool jpeg2000_file_format(const char *fname, GRK_SUPPORTED_FILE_FMT *fmt) {
 	const char *magic_s;
 	GRK_SUPPORTED_FILE_FMT ext_format = GRK_UNK_FMT, magic_format = GRK_UNK_FMT;
 	uint8_t buf[12];
-	size_t l_nb_read;
+	size_t nb_read;
 
 	reader = fopen(fname, "rb");
 	if (reader == nullptr)
 		return false;
 
 	memset(buf, 0, 12);
-	l_nb_read = fread(buf, 1, 12, reader);
+	nb_read = fread(buf, 1, 12, reader);
 	if (!grk::safe_fclose(reader))
 		return false;
 
-	if (l_nb_read != 12)
+	if (nb_read != 12)
 		return false;
 
 	int temp = get_file_format(fname);
@@ -300,13 +249,20 @@ uint32_t get_num_images(char *imgdirpath) {
 	return num_images;
 }
 
-char* actual_path(const char *outfile) {
+char* actual_path(const char *outfile, bool *mem_allocated) {
+	if (mem_allocated)
+		*mem_allocated = false;
+	if (!outfile)
+		return nullptr;
 #ifdef _WIN32
 	return (char*)outfile;
 #else
 	char *actualpath = realpath(outfile, NULL);
-	if (actualpath != nullptr)
+	if (actualpath != nullptr){
+		if (mem_allocated)
+			*mem_allocated = true;
 		return actualpath;
+	}
 	return (char*) outfile;
 #endif
 }
@@ -316,7 +272,7 @@ uint32_t uint_adds(uint32_t a, uint32_t b) {
 	return (uint32_t) (-(int32_t) (sum >> 32)) | (uint32_t) sum;
 }
 
-bool all_components_sanity_check(grk_image *image) {
+bool all_components_sanity_check(grk_image *image, bool equal_precision) {
 	if (!image || image->numcomps == 0)
 		return false;
 	auto comp0 = image->comps;
@@ -337,7 +293,7 @@ bool all_components_sanity_check(grk_image *image) {
 			spdlog::error("component {} data is null.", i);
 			return false;
 		}
-		if (comp0->prec != compi->prec){
+		if (equal_precision && comp0->prec != compi->prec){
 			spdlog::warn("precision {} of component {}"
 					" differs from precision {} of component 0.",compi->prec, i, comp0->prec);
 			return false;

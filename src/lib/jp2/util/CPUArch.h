@@ -18,15 +18,14 @@
 
 #define GROK_SKIP_POISON
 
-#include "grok_includes.h"
+#include "grk_includes.h"
 
-#ifndef __aarch64__
 #ifdef WIN32
 	#include <intrin.h>
-#else
+#elif defined(__x86_64__) || defined(__i386__)
 	#include <x86intrin.h>
 #endif
-#endif
+
 
 #if defined(__GNUC__)
 #pragma GCC poison malloc calloc realloc free
@@ -36,12 +35,13 @@ namespace grk {
 
 class CPUArch {
 public:
-	bool AVX2();
-	bool AVX();
-	bool SSE4_1();
-	bool SSE3();
-	bool BMI1();
-	bool BMI2();
+	static bool AVX2();
+	static bool AVX();
+	static bool SSE4_1();
+	static bool SSE3();
+	static bool SSE2();
+	static bool BMI1();
+	static bool BMI2();
 
 };
 

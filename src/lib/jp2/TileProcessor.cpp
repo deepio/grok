@@ -14,48 +14,12 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2006-2007, Parvatha Elangovan
- * Copyright (c) 2008, 2011-2012, Centre National d'Etudes Spatiales (CNES), FR
- * Copyright (c) 2012, CS Systemes d'Information, France
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "grok_includes.h"
+
+#include "grk_includes.h"
 #include "Tier1.h"
 #include <memory>
 #include "WaveletForward.h"
@@ -68,7 +32,7 @@ using namespace std;
 
 namespace grk {
 
-TileProcessor::TileProcessor(CodeStream *codeStream) :
+TileProcessor::TileProcessor(CodeStream *codeStream, BufferedStream *stream) :
 				 m_tile_index(0),
 				 m_poc_tile_part_index(0),
 				 m_tile_part_index(0),
@@ -81,19 +45,20 @@ TileProcessor::TileProcessor(CodeStream *codeStream) :
 				whole_tile_decoding(codeStream->whole_tile_decoding),
 				plt_markers(nullptr),
 				m_cp(&codeStream->m_cp),
-				m_resno_decoded(nullptr),
+				m_resno_decoded_per_component(nullptr),
+				m_stream(stream),
 				tp_pos(0),
 				m_tcp(nullptr),
 				m_corrupt_packet(false)
 {
-
+	assert(stream);
 	tile = (grk_tile*) grk_calloc(1, sizeof(grk_tile));
 	if (!tile)
 		throw new std::runtime_error("out of memory");
 
 	tile->comps = new TileComponent[image->numcomps];
-	m_resno_decoded = new uint32_t[image->numcomps];
-	memset(m_resno_decoded,0, image->numcomps * sizeof(uint32_t));
+	m_resno_decoded_per_component = new uint32_t[image->numcomps];
+	memset(m_resno_decoded_per_component,0, image->numcomps * sizeof(uint32_t));
 	tile->numcomps = image->numcomps;
 
 	tp_pos = m_cp->m_coding_params.m_enc.m_tp_pos;
@@ -105,7 +70,7 @@ TileProcessor::~TileProcessor() {
 		grk_free(tile);
 	}
 	delete plt_markers;
-	delete[] m_resno_decoded;
+	delete[] m_resno_decoded_per_component;
 }
 
 /*
@@ -128,7 +93,7 @@ bool TileProcessor::layer_needs_rate_control(uint32_t layno) {
 }
 
 bool TileProcessor::needs_rate_control() {
-	for (uint32_t i = 0; i < m_tcp->numlayers; ++i) {
+	for (uint16_t i = 0; i < m_tcp->numlayers; ++i) {
 		if (layer_needs_rate_control(i))
 			return true;
 	}
@@ -302,7 +267,7 @@ bool TileProcessor::pcrd_bisect_feasible(uint32_t *all_packets_len) {
 	uint32_t max_slope = USHRT_MAX;
 
 	uint32_t upperBound = max_slope;
-	for (uint32_t layno = 0; layno < tcp->numlayers; layno++) {
+	for (uint16_t layno = 0; layno < tcp->numlayers; layno++) {
 		uint32_t lowerBound = min_slope;
 		uint32_t maxlen =
 				tcp->rates[layno] > 0.0f ?
@@ -371,7 +336,8 @@ bool TileProcessor::pcrd_bisect_feasible(uint32_t *all_packets_len) {
  Simple bisect algorithm to calculate optimal layer truncation points
  */
 bool TileProcessor::pcrd_bisect_simple(uint32_t *all_packets_len) {
-	uint32_t compno, resno, bandno,layno;
+	uint32_t compno, resno, bandno;
+	uint16_t layno;
 	uint64_t precno, cblkno;
 	uint32_t passno;
 	double cumdisto[100];
@@ -728,7 +694,7 @@ bool TileProcessor::init_tile(grk_image *output_image,
 	tile->x0 = std::max<uint32_t>(tx0, image->x0);
 	tile->x1 = std::min<uint32_t>(uint_adds(tx0, m_cp->t_width), image->x1);
 	if (tile->x1 <= tile->x0) {
-		GROK_ERROR("Tile x0 coordinate %u must be "
+		GRK_ERROR("Tile x0 coordinate %u must be "
 				"<= tile x1 coordinate %u", tile->x0, tile->x1);
 		return false;
 	}
@@ -736,7 +702,7 @@ bool TileProcessor::init_tile(grk_image *output_image,
 	tile->y0 = std::max<uint32_t>(ty0, image->y0);
 	tile->y1 = std::min<uint32_t>(uint_adds(ty0, m_cp->t_height), image->y1);
 	if (tile->y1 <= tile->y0) {
-		GROK_ERROR("Tile y0 coordinate %u must be "
+		GRK_ERROR("Tile y0 coordinate %u must be "
 				"<= tile y1 coordinate %u", tile->y0, tile->y1);
 		return false;
 	}
@@ -744,7 +710,7 @@ bool TileProcessor::init_tile(grk_image *output_image,
 
 	/* testcase 1888.pdf.asan.35.988 */
 	if (tcp->tccps->numresolutions == 0) {
-		GROK_ERROR("tiles require at least one resolution");
+		GRK_ERROR("tiles require at least one resolution");
 		return false;
 	}
 
@@ -765,7 +731,7 @@ bool TileProcessor::init_tile(grk_image *output_image,
 	if (!isEncoder) {
 		if (state & GRK_PLUGIN_STATE_DEBUG) {
 			if (!tile_equals(current_plugin_tile, tile))
-				GROK_WARN("plugin tile differs from grok tile", nullptr);
+				GRK_WARN("plugin tile differs from grok tile", nullptr);
 		}
 	}
 	tile->packno = 0;
@@ -790,7 +756,7 @@ bool TileProcessor::init_tile(grk_image *output_image,
 	return true;
 }
 
-bool TileProcessor::do_encode(BufferedStream *stream){
+bool TileProcessor::do_encode(void){
 	uint32_t state = grk_plugin_get_debug_state();
 	if (state & GRK_PLUGIN_STATE_DEBUG)
 		set_context_stream(this);
@@ -818,24 +784,24 @@ bool TileProcessor::do_encode(BufferedStream *stream){
 		t1_encode();
 	}
 
-	if (!pre_compress_first_tile_part(stream)) {
-		GROK_ERROR("Cannot compress tile");
+	if (!pre_compress_first_tile_part()) {
+		GRK_ERROR("Cannot compress tile");
 		return false;
 	}
 
 	return true;
 }
 
-bool TileProcessor::pre_compress_first_tile_part(BufferedStream *stream) {
+bool TileProcessor::pre_compress_first_tile_part(void) {
 	if (m_tile_part_index == 0) {
 
 		// 1. create PLT marker if required
 		delete plt_markers;
 		if (m_cp->m_coding_params.m_enc.writePLT){
 			if (!needs_rate_control())
-				plt_markers = new PacketLengthMarkers(stream);
+				plt_markers = new PacketLengthMarkers(m_stream);
 			else
-				GROK_WARN("PLT marker generation disabled due to rate control.");
+				GRK_WARN("PLT marker generation disabled due to rate control.");
 		}
 		// 2. rate control
 		if (!rate_allocate())
@@ -846,8 +812,7 @@ bool TileProcessor::pre_compress_first_tile_part(BufferedStream *stream) {
 	return true;
 }
 
-bool TileProcessor::compress_tile_part(BufferedStream *stream,
-		uint32_t *tile_bytes_written) {
+bool TileProcessor::compress_tile_part(	uint32_t *tile_bytes_written) {
 
 	//4 write PLT for first tile part
 	if (m_tile_part_index == 0 && plt_markers){
@@ -856,12 +821,12 @@ bool TileProcessor::compress_tile_part(BufferedStream *stream,
 	}
 
 	//3 write SOD
-	if (!stream->write_short(J2K_MS_SOD))
+	if (!m_stream->write_short(J2K_MS_SOD))
 		return false;
 
 	*tile_bytes_written += 2;
 
-	return t2_encode(stream, tile_bytes_written);
+	return t2_encode(tile_bytes_written);
 }
 
 /** Returns whether a tile component should be fully decoded,
@@ -923,7 +888,7 @@ bool TileProcessor::decompress_tile_t2(ChunkBuffer *src_buf) {
 				/* We should not normally go there. The circumstance is when */
 				/* the tile coordinates do not intersect the area of interest */
 				/* Upper level logic should not even try to decompress that tile */
-				GROK_ERROR("Invalid tilec->win_xxx values.");
+				GRK_ERROR("Invalid tilec->win_xxx values.");
 				return false;
 			}
 
@@ -973,9 +938,9 @@ bool TileProcessor::decompress_tile_t1(void) {
 
 			if (!whole_tile_decoding) {
 				try {
-					tilec->alloc_sparse_array(m_resno_decoded[compno] + 1);
+					tilec->alloc_sparse_array(m_resno_decoded_per_component[compno] + 1);
 				} catch (runtime_error &ex) {
-					GROK_ERROR("decompress_tile_t1: %s", ex.what());
+					GRK_ERROR("decompress_tile_t1: %s", ex.what());
 					return false;
 				}
 			}
@@ -991,7 +956,7 @@ bool TileProcessor::decompress_tile_t1(void) {
 
 			if (doPostT1)
 				if (!Wavelet::decompress(this, tilec,
-						m_resno_decoded[compno] + 1, tccp->qmfbid))
+						m_resno_decoded_per_component[compno] + 1, tccp->qmfbid))
 					return false;
 
 			tilec->release_mem();
@@ -1037,114 +1002,66 @@ bool TileProcessor::t2_decode(ChunkBuffer *src_buf,
 	return rc;
 }
 
-bool TileProcessor::mct_decode() {
-	auto tile_comp = tile->comps;
-
+bool TileProcessor::need_mct_decode(uint32_t compno){
 	if (!m_tcp->mct)
-		return true;
-
-	uint64_t samples = tile_comp->buf->strided_area();
-
-	if (tile->numcomps >= 3) {
-		/* testcase 1336.pdf.asan.47.376 */
-		if (tile->comps[1].buf->strided_area()	!= samples
-				|| tile->comps[2].buf->strided_area()	!= samples) {
-			GROK_ERROR(
-					"Tiles don't all have the same dimension. Skip the MCT step.");
-			return false;
-		} else if (m_tcp->mct == 2) {
-			if (!m_tcp->m_mct_decoding_matrix)
-				return true;
-			auto data = (uint8_t**) grk_malloc(
-					tile->numcomps * sizeof(uint8_t*));
-			if (!data)
-				return false;
-
-			for (uint32_t i = 0; i < tile->numcomps; ++i) {
-				data[i] = (uint8_t*) tile_comp->buf->ptr();
-				++tile_comp;
-			}
-
-			if (!mct::decode_custom(/* MCT data */
-			(uint8_t*) m_tcp->m_mct_decoding_matrix,
-			/* size of components */
-			samples,
-			/* components */
-			data,
-			/* nb of components (i.e. size of pData) */
-			tile->numcomps,
-			/* tells if the data is signed */
-			image->comps->sgnd)) {
-				grk_free(data);
-				return false;
-			}
-
-			grk_free(data);
-		} else {
-			if (m_tcp->tccps->qmfbid == 1) {
-				mct::decode_rev(tile->comps[0].buf->ptr(),
-						tile->comps[1].buf->ptr(),
-						tile->comps[2].buf->ptr(), samples);
-			} else {
-				mct::decode_irrev(
-						(float*) tile->comps[0].buf->ptr(),
-						(float*) tile->comps[1].buf->ptr(),
-						(float*) tile->comps[2].buf->ptr(),
-						samples);
-			}
-		}
-	} else {
-		GROK_ERROR(
-				"Number of components (%u) is inconsistent with a MCT. Skip the MCT step.",
+		return false;
+	if (tile->numcomps < 3){
+		GRK_WARN("Number of components (%u) is inconsistent with a MCT. Skip the MCT step.",
 				tile->numcomps);
+		return false;
+	}
+	/* testcase 1336.pdf.asan.47.376 */
+	uint64_t samples = tile->comps->buf->strided_area();
+	if (tile->comps[1].buf->strided_area()	!= samples
+			|| tile->comps[2].buf->strided_area()	!= samples) {
+		GRK_WARN("Not all tiles components have the same dimension: skipping MCT.");
+		return false;
+	}
+	if (compno > 2)
+		return false;
+	if (m_tcp->mct == 2 && !m_tcp->m_mct_decoding_matrix)
+		return false;
+
+	return true;
+}
+
+bool TileProcessor::mct_decode() {
+
+	if (!need_mct_decode(0))
+		return true;
+	if (m_tcp->mct == 2) {
+		auto data = new uint8_t*[tile->numcomps];
+		for (uint32_t i = 0; i < tile->numcomps; ++i) {
+			auto tile_comp = tile->comps + i;
+			data[i] = (uint8_t*) tile_comp->buf->ptr();
+		}
+		uint64_t samples = tile->comps->buf->strided_area();
+		bool rc = mct::decode_custom((uint8_t*) m_tcp->m_mct_decoding_matrix,
+									samples,
+									data,
+									tile->numcomps,
+									image->comps->sgnd);
+		delete[] data;
+		return rc;
+	} else {
+		if (m_tcp->tccps->qmfbid == 1) {
+			mct::decode_rev(tile,image,m_tcp->tccps);
+		} else {
+			mct::decode_irrev(tile,	image,m_tcp->tccps);
+		}
 	}
 
 	return true;
 }
 
 bool TileProcessor::dc_level_shift_decode() {
-	uint32_t compno = 0;
-	for (compno = 0; compno < tile->numcomps; compno++) {
-		int32_t min = INT32_MAX, max = INT32_MIN;
-		uint32_t x1;
-		uint32_t y1;
-		auto tile_comp = tile->comps + compno;
-		auto tccp = m_tcp->tccps + compno;
-		auto img_comp = image->comps + compno;
-		uint32_t stride_diff = tile_comp->buf->stride() - (uint32_t)tile_comp->buf->bounds().width();
-		auto current_ptr = tile_comp->buf->ptr();
-
-		x1 = (uint32_t) tile_comp->buf->bounds().width();
-		y1 = (uint32_t) tile_comp->buf->bounds().height();
-
-		if (img_comp->sgnd) {
-			min = -(1 << (img_comp->prec - 1));
-			max = (1 << (img_comp->prec - 1)) - 1;
-		} else {
-			min = 0;
-			max = (1 << img_comp->prec) - 1;
-		}
-
-		if (tccp->qmfbid == 1) {
-			for (uint32_t j = 0; j < y1; ++j) {
-				for (uint32_t i = 0; i < x1; ++i) {
-					*current_ptr = std::clamp<int32_t>(
-							*current_ptr + tccp->m_dc_level_shift, min, max);
-					current_ptr++;
-				}
-				current_ptr += stride_diff;
-			}
-		} else {
-			for (uint32_t j = 0; j < y1; ++j) {
-				for (uint32_t i = 0; i < x1; ++i) {
-					float value = *((float*) current_ptr);
-					*current_ptr = std::clamp<int32_t>(
-							(int32_t) grok_lrintf(value)
-									+ tccp->m_dc_level_shift, min, max);
-					current_ptr++;
-				}
-				current_ptr += stride_diff;
-			}
+	for (uint32_t compno = 0; compno < tile->numcomps; compno++) {
+		if (!need_mct_decode(compno) || m_tcp->mct == 2 ) {
+			auto tccp = m_tcp->tccps + compno;
+			if (tccp->qmfbid == 1)
+				mct::decode_rev(tile,image,m_tcp->tccps,compno);
+			else
+				mct::decode_irrev(tile,image,m_tcp->tccps,compno);
 		}
 	}
 	return true;
@@ -1156,58 +1073,38 @@ bool TileProcessor::dc_level_shift_encode() {
 		auto tccp = m_tcp->tccps + compno;
 		auto current_ptr = tile_comp->buf->ptr();
 		uint64_t samples = tile_comp->buf->strided_area();
-
-		if (tccp->qmfbid == 1) {
-			if (tccp->m_dc_level_shift == 0)
-				continue;
-			for (uint64_t i = 0; i < samples; ++i) {
-				*current_ptr -= tccp->m_dc_level_shift;
-				++current_ptr;
-			}
-		} else {
-			for (uint64_t i = 0; i < samples; ++i) {
-				*current_ptr = (*current_ptr - tccp->m_dc_level_shift)
-						* (1 << 11);
-				++current_ptr;
-			}
+		if (tccp->m_dc_level_shift == 0)
+			continue;
+		for (uint64_t i = 0; i < samples; ++i) {
+			*current_ptr -= tccp->m_dc_level_shift;
+			++current_ptr;
 		}
 	}
 
 	return true;
 }
 
+
 bool TileProcessor::mct_encode() {
-	auto tile_comp = tile->comps;
-	uint64_t samples = tile_comp->buf->strided_area();
+	uint64_t samples = tile->comps->buf->strided_area();
 
 	if (!m_tcp->mct)
 		return true;
 	if (m_tcp->mct == 2) {
 		if (!m_tcp->m_mct_coding_matrix)
 			return true;
-		auto data = (uint8_t**) grk_malloc(tile->numcomps * sizeof(uint8_t*));
-		if (!data)
-			return false;
+		auto data = new uint8_t*[tile->numcomps];
 		for (uint32_t i = 0; i < tile->numcomps; ++i) {
+			auto tile_comp = tile->comps + i;
 			data[i] = (uint8_t*) tile_comp->buf->ptr();
-			++tile_comp;
 		}
-
-		if (!mct::encode_custom(/* MCT data */
-		(uint8_t*) m_tcp->m_mct_coding_matrix,
-		/* size of components */
-		samples,
-		/* components */
-		data,
-		/* nb of components (i.e. size of pData) */
-		tile->numcomps,
-		/* tells if the data is signed */
-		image->comps->sgnd)) {
-			grk_free(data);
-			return false;
-		}
-
-		grk_free(data);
+		bool rc = mct::encode_custom((uint8_t*) m_tcp->m_mct_coding_matrix,
+								samples,
+								data,
+								tile->numcomps,
+								image->comps->sgnd);
+		delete[] data;
+		return rc;
 	} else if (m_tcp->tccps->qmfbid == 0) {
 		mct::encode_irrev(tile->comps[0].buf->ptr(),
 				tile->comps[1].buf->ptr(),
@@ -1259,7 +1156,7 @@ void TileProcessor::t1_encode() {
 			needs_rate_control());
 }
 
-bool TileProcessor::t2_encode(BufferedStream *stream, uint32_t *all_packet_bytes_written) {
+bool TileProcessor::t2_encode(uint32_t *all_packet_bytes_written) {
 
 	auto l_t2 = new T2Encode(this);
 #ifdef DEBUG_LOSSLESS_T2
@@ -1314,7 +1211,7 @@ bool TileProcessor::t2_encode(BufferedStream *stream, uint32_t *all_packet_bytes
 	}
 #endif
 
-	if (!l_t2->encode_packets(m_tile_index, m_tcp->numlayers, stream,
+	if (!l_t2->encode_packets(m_tile_index, m_tcp->numlayers, m_stream,
 			all_packet_bytes_written, m_poc_tile_part_index, tp_pos, pino)) {
 		delete l_t2;
 		return false;
@@ -1486,7 +1383,7 @@ bool TileProcessor::pre_write_tile() {
 				tilec->buf->attach(imagec->data, imagec->stride);
 			} else {
 				if (!tilec->buf->alloc()) {
-					GROK_ERROR("Error allocating tile component data.");
+					GRK_ERROR("Error allocating tile component data.");
 					return false;
 				}
 			}
@@ -1564,6 +1461,90 @@ bool TileProcessor::copy_uncompressed_data_to_tile(uint8_t *p_src,
 			break;
 		}
 	}
+	return true;
+}
+
+bool TileProcessor::prepare_sod_decoding(CodeStream *codeStream) {
+	assert(codeStream);
+
+	// note: we subtract 2 to account for SOD marker
+	auto tcp = codeStream->get_current_decode_tcp();
+	if (codeStream->m_decoder.m_last_tile_part_in_code_stream) {
+		tile_part_data_length =
+				(uint32_t) (m_stream->get_number_byte_left() - 2);
+	} else {
+		if (tile_part_data_length >= 2)
+			tile_part_data_length -= 2;
+	}
+	if (tile_part_data_length) {
+		auto bytesLeftInStream = m_stream->get_number_byte_left();
+		// check that there are enough bytes in stream to fill tile data
+		if (tile_part_data_length > bytesLeftInStream) {
+			GRK_WARN("Tile part length %lld greater than "
+					"stream length %lld\n"
+					"(tile: %u, tile part: %d). Tile may be truncated.",
+					tile_part_data_length,
+					m_stream->get_number_byte_left(),
+					m_tile_index,
+					tcp->m_tile_part_index);
+
+			// sanitize tile_part_data_length
+			tile_part_data_length =	(uint32_t) bytesLeftInStream;
+		}
+	}
+	/* Index */
+	grk_codestream_index *cstr_index = codeStream->cstr_index;
+	if (cstr_index) {
+		uint64_t current_pos = m_stream->tell();
+		if (current_pos < 2) {
+			GRK_ERROR("Stream too short");
+			return false;
+		}
+		current_pos = (uint64_t) (current_pos - 2);
+
+		uint32_t current_tile_part =
+				cstr_index->tile_index[m_tile_index].current_tpsno;
+		cstr_index->tile_index[m_tile_index].tp_index[current_tile_part].end_header =
+				current_pos;
+		cstr_index->tile_index[m_tile_index].tp_index[current_tile_part].end_pos =
+				current_pos + tile_part_data_length + 2;
+
+		if (!TileLengthMarkers::add_to_index(
+				m_tile_index, cstr_index,
+				J2K_MS_SOD, current_pos, 0)) {
+			GRK_ERROR("Not enough memory to add tl marker");
+			return false;
+		}
+
+		/*cstr_index->packno = 0;*/
+	}
+	size_t current_read_size = 0;
+	if (tile_part_data_length) {
+		if (!tcp->m_tile_data)
+			tcp->m_tile_data = new ChunkBuffer();
+
+		auto len = tile_part_data_length;
+		uint8_t *buff = nullptr;
+		auto zeroCopy = m_stream->supportsZeroCopy();
+		if (!zeroCopy) {
+			try {
+				buff = new uint8_t[len];
+			} catch (std::bad_alloc &ex) {
+				GRK_ERROR("Not enough memory to allocate segment");
+				return false;
+			}
+		} else {
+			buff = m_stream->getCurrentPtr();
+		}
+		current_read_size = m_stream->read(zeroCopy ? nullptr : buff, len);
+		tcp->m_tile_data->push_back(buff, len, !zeroCopy);
+
+	}
+	if (current_read_size != tile_part_data_length)
+		codeStream->m_decoder.m_state = J2K_DEC_STATE_NO_EOC;
+	else
+		codeStream->m_decoder.m_state = J2K_DEC_STATE_TPH_SOT;
+
 	return true;
 }
 
@@ -2020,11 +2001,11 @@ void grk_precinct::initTagTrees() {
 			try {
 				incltree = new TagTree(cw, ch);
 			} catch (std::exception &e) {
-				GROK_WARN("No incltree created.");
+				GRK_WARN("No incltree created.");
 			}
 		} else {
 			if (!incltree->init(cw, ch)) {
-				GROK_WARN("Failed to re-initialize incltree.");
+				GRK_WARN("Failed to re-initialize incltree.");
 				delete incltree;
 				incltree = nullptr;
 			}
@@ -2034,11 +2015,11 @@ void grk_precinct::initTagTrees() {
 			try {
 				imsbtree = new TagTree(cw, ch);
 			} catch (std::exception &e) {
-				GROK_WARN("No imsbtree created.");
+				GRK_WARN("No imsbtree created.");
 			}
 		} else {
 			if (!imsbtree->init(cw, ch)) {
-				GROK_WARN("Failed to re-initialize imsbtree.");
+				GRK_WARN("Failed to re-initialize imsbtree.");
 				delete imsbtree;
 				imsbtree = nullptr;
 			}

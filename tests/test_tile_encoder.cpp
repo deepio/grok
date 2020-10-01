@@ -247,7 +247,7 @@ int main(int argc, char *argv[]) {
 	stream = grk_stream_create_file_stream(output_file, 1024 * 1024, false);
 	if (!stream) {
 		spdlog::error(
-				"test_tile_encoder: failed to create the stream from the output file {}",
+				"test_tile_encoder: failed to create a stream from file {}",
 				output_file);
 		rc = 1;
 		goto cleanup;
@@ -270,7 +270,7 @@ int main(int argc, char *argv[]) {
 	grk_set_warning_handler(warning_callback, nullptr);
 	grk_set_error_handler(error_callback, nullptr);
 
-	image = grk_image_create(num_comps, params, GRK_CLRSPC_SRGB);
+	image = grk_image_create(num_comps, params, GRK_CLRSPC_SRGB,true);
 	if (!image) {
 		rc = 1;
 		goto cleanup;

@@ -14,48 +14,9 @@
  *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  *
- *    This source code incorporates work covered by the following copyright and
- *    permission notice:
+ *    This source code incorporates work covered by the BSD 2-clause license.
+ *    Please see the LICENSE file in the root directory for details.
  *
- * The copyright in this software is being made available under the 2-clauses
- * BSD License, included below. This software may be subject to other third
- * party and contributor rights, including patent rights, and no such rights
- * are granted under this license.
- *
- * Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
- * Copyright (c) 2002-2014, Professor Benoit Macq
- * Copyright (c) 2001-2003, David Janssens
- * Copyright (c) 2002-2003, Yannick Verschueren
- * Copyright (c) 2003-2007, Francois-Olivier Devaux
- * Copyright (c) 2003-2014, Antonin Descampe
- * Copyright (c) 2005, Herve Drolon, FreeImage Team
- * Copyright (c) 2006-2007, Parvatha Elangovan
- * Copyright (c) 2008, Jerome Fimes, Communications & Systemes <jerome.fimes@c-s.fr>
- * Copyright (c) 2011-2012, Centre National d'Etudes Spatiales (CNES), France
- * Copyright (c) 2012, CS Systemes d'Information, France
- *
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS `AS IS'
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #pragma once
@@ -86,6 +47,7 @@ enum J2K_MCT_ARRAY_TYPE {
  Tile-component coding parameters
  */
 struct TileComponentCodingParams {
+	TileComponentCodingParams();
 	/** coding style */
 	uint8_t csty;
 	/** number of resolutions */
@@ -101,6 +63,9 @@ struct TileComponentCodingParams {
 	uint8_t cblk_sty;
 	/** discrete wavelet transform identifier */
 	uint8_t qmfbid;
+	// true if quantization marker has been read for this component,
+	// false otherwise
+	bool quantizationMarkerSet;
 	// true if quantization marker was read from QCC otherwise false
 	bool fromQCC;
 	// true if quantization marker was read from tile header
@@ -164,8 +129,8 @@ struct TileCodingParams {
 	/** progression order */
 	GRK_PROG_ORDER prg;
 	/** number of layers */
-	uint32_t numlayers;
-	uint32_t num_layers_to_decode;
+	uint16_t numlayers;
+	uint16_t num_layers_to_decode;
 	/** multi-component transform identifier */
 	uint32_t mct;
 	/** rates of layers */
@@ -197,6 +162,7 @@ struct TileCodingParams {
 	/** tile-component coding parameters */
 	TileComponentCodingParams *tccps;
 	// current tile part number (-1 if not yet initialized
+	// NOTE: tile part index <= 254
 	int16_t m_tile_part_index;
 
 	/** number of tile parts for the tile. */
@@ -260,7 +226,7 @@ struct DecodingParams {
 	/** if != 0, then original dimension divided by 2^(reduce); if == 0 or not used, image is decoded to the full resolution */
 	uint32_t m_reduce;
 	/** if != 0, then only the first "layer" layers are decoded; if == 0 or not used, all the quality layers are decoded */
-	uint32_t m_layer;
+	uint16_t m_layer;
 };
 
 /**
@@ -316,14 +282,13 @@ struct DecoderState {
 					m_end_tile_x_index(0),
 					m_end_tile_y_index(0),
 					m_last_sot_read_pos(0),
-					m_last_tile_part(false),
-					ready_to_decode_tile_part_data(false),
-					m_discard_tiles(false),
-					m_skip_data(false)
+					m_last_tile_part_in_code_stream(false),
+					last_tile_part_was_read(false),
+					m_skip_tile_data(false)
 	{}
 
 
-	bool findNextTile(BufferedStream *stream);
+	bool findNextTile(CodeStream *codeStream);
 
 	/** Decoder state: used to indicate in which part of the code stream
 	 *  the decoder is (main header, tile header, end) */
@@ -343,14 +308,16 @@ struct DecoderState {
 
 	/**
 	 * Indicate that the current tile-part is assumed to be the last tile part of the code stream.
-	 * This is useful in the case when PSot is equal to zero. The sot length will be computed in the
+	 * This is useful in the case when PSot is equal to zero. The SOT length will be computed in the
 	 * SOD reader function.
 	 */
-	bool m_last_tile_part;
-	// Indicates that a tile's data can be decoded
-	bool ready_to_decode_tile_part_data;
-	bool m_discard_tiles;
-	bool m_skip_data;
+	bool m_last_tile_part_in_code_stream;
+
+	// Indicates that the last tile part header has been read, so that
+	// the tile's data can now be decoded
+	bool last_tile_part_was_read;
+
+	bool m_skip_tile_data;
 
 };
 
